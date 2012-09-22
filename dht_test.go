@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackpal/Taipei-Torrent/nettools"
+	"github.com/nictuku/nettools"
 )
 
 func startDHTNode(t *testing.T) *DHTEngine {

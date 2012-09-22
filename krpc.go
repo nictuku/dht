@@ -10,7 +10,7 @@ import (
 
 	l4g "code.google.com/p/log4go"
 	bencode "code.google.com/p/bencode-go"
-	"github.com/jackpal/Taipei-Torrent/nettools"
+	"github.com/nictuku/nettools"
 )
 
 // Owned by the DHT engine.
