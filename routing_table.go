@@ -150,6 +150,43 @@ func (r *routingTable) cleanup() (needPing []string) {
 	return needPing
 }
 
+// MAYBE REWRITE AS GENERALIZATION OF THE FIND NODE FUNCTION, BUT ADD A CACHE?
+type neighborhood struct {
+	r                       *routingTable
+	nodeId                  string
+	neighborhoodDistantNode *DHTRemoteNode
+	// how many prefix bits are shared between neighborhoodDistantNode and
+	// nodeId.
+	neighborhoodProximity int
+	neighborhoodSize      int
+}
+
+// neighborhoodUpkeep will update the routingtable if the node n is closer than
+// the 8 nodes in our neighborhood, by replacing the least close one.
+func (h *neighborhood) upkeep(n *DHTRemoteNode) {
+	cmp := commonBits(h.nodeId, n.id)
+	closer := h.neighborhoodProximity == -1 || cmp > h.neighborhoodProximity
+	if closer {
+		h.r.insert(n)
+		h.replaceLastNeighbor(n, d)
+	} else if h.neighborhoodSize < 8 {
+		h.r.insert(n)
+		h.neighborhoodSize += 1
+	}
+
+}
+
+func (h *neighborhood) isPotentialNeighbor(n *DHTRemoteNode) bool {
+	return h.neighborhoodProximity == -1 ||
+		commonBits(h.nodeId, n.id) < h.neighborhoodProximity ||
+		h.neighborhoodSize < 8
+}
+
+func (h *neighborhood) replaceLastNeighbor(n *DHTRemoteNode, proximity int) {
+	h.neighborhoodDistantNode = n
+	h.neighborhoodProximity = proximity
+}
+
 var (
 	totalKilledNodes = expvar.NewInt("totalKilledNodes")
 	totalNodes       = expvar.NewInt("totalNodes")
