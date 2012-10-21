@@ -116,6 +116,9 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHTEngine, e
 	// The types don't match because JSON marshalling needs []byte.
 	node.nodeId = string(c.Id)
 
+	// XXX refactor.
+	node.routingTable.nodeId = node.nodeId
+
 	for addr, _ := range c.Remotes {
 		go node.RemoteNodeAcquaintance(addr)
 	}
@@ -208,7 +211,9 @@ func (d *DHTEngine) DoDHT() {
 				tokenBucket += rateLimit / 10
 			}
 		case <-cleanupTicker:
-			d.routingTable.cleanup()
+			for _, addr := range d.routingTable.cleanup() {
+				d.ping(addr)
+			}
 		case <-saveTicker:
 			tbl := d.routingTable.reachableNodes()
 			if len(tbl) > 5 {
@@ -260,7 +265,6 @@ func (d *DHTEngine) process(p packetType) {
 			if d.routingTable.length() < maxNodes {
 				d.ping(addr)
 			}
-			// TODO: Add this guy to a list of dubious hosts.
 			return
 		}
 		// Fix the node ID.
@@ -277,6 +281,8 @@ func (d *DHTEngine) process(p packetType) {
 			if _, ok := d.infoHashPeers[query.ih]; !ok {
 				d.infoHashPeers[query.ih] = map[string]int{}
 			}
+			d.routingTable.neighborhoodUpkeep(node)
+
 			switch query.Type {
 			case "ping":
 				// served its purpose, nothing else to be done.

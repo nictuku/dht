@@ -243,22 +243,12 @@ func (n *nTree) filter(ih string) bool {
 	return true
 }
 
-/*
-// idCompare returns an integer less than, equal to, or greater than zero if
-// the first n bytes of id1 is found, respectively, to be less than, to match,
-// or be greater than the first n bytes of id2.
-func idCompare(id1 string, id2 string) int {
-	// inspired by jch's id_cmp and memcmp().
-	return bytes.Compare(id1, id2)
-
-}
-*/
-
 func commonBits(s1, s2 string) int {
 	// copied from jch's dht.cc.
 	id1, id2 := []byte(s1), []byte(s2)
 
-	for i := 0; i < 20; i++ {
+	i := 0
+	for ; i < 20; i++ {
 		if id1[i] != id2[i] {
 			break
 		}
@@ -275,7 +265,6 @@ func commonBits(s1, s2 string) int {
 		xor <<= 1
 		j++
 	}
-
 	return 8*i + j
 }
 

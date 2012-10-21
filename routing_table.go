@@ -14,12 +14,23 @@ func newRoutingTable() *routingTable {
 	return &routingTable{
 		&nTree{},
 		make(map[string]*DHTRemoteNode),
+		"",
+		nil,
+		0,
 	}
 }
 
 type routingTable struct {
 	*nTree
 	addresses map[string]*DHTRemoteNode
+
+	// Neighborhood. Not very pretty. 
+
+	nodeId      string // This shouldn't be here. Move neighborhood upkeep one level up?
+	distantNode *DHTRemoteNode
+	// how many prefix bits are shared between neighborhoodDistantNode and
+	// nodeId.
+	proximity int
 }
 
 func (r *routingTable) hostPortToNode(hostPort string) (node *DHTRemoteNode, addr string, ok bool) {
@@ -109,6 +120,22 @@ func (r *routingTable) kill(n *DHTRemoteNode) {
 	delete(r.addresses, n.address.String())
 	r.nTree.cut(n.id, 0)
 	totalKilledNodes.Add(1)
+
+	if n.id == r.distantNode.id {
+		r.resetNeighborhoodBoundary()
+	}
+}
+
+func (r *routingTable) resetNeighborhoodBoundary() {
+	r.proximity = 0
+	// Try to find a distant one within the neighborhood and promote it as
+	// the most distant node in the neighborhood.
+	neighbors := r.lookup(r.nodeId)
+	if len(neighbors) > 0 {
+		r.distantNode = neighbors[len(neighbors)-1]
+		r.proximity = commonBits(r.nodeId, r.distantNode.id)
+	}
+
 }
 
 func (r *routingTable) cleanup() (needPing []string) {
@@ -150,41 +177,36 @@ func (r *routingTable) cleanup() (needPing []string) {
 	return needPing
 }
 
-// MAYBE REWRITE AS GENERALIZATION OF THE FIND NODE FUNCTION, BUT ADD A CACHE?
-type neighborhood struct {
-	r                       *routingTable
-	nodeId                  string
-	neighborhoodDistantNode *DHTRemoteNode
-	// how many prefix bits are shared between neighborhoodDistantNode and
-	// nodeId.
-	neighborhoodProximity int
-	neighborhoodSize      int
-}
-
 // neighborhoodUpkeep will update the routingtable if the node n is closer than
-// the 8 nodes in our neighborhood, by replacing the least close one.
-func (h *neighborhood) upkeep(n *DHTRemoteNode) {
-	cmp := commonBits(h.nodeId, n.id)
-	closer := h.neighborhoodProximity == -1 || cmp > h.neighborhoodProximity
-	if closer {
-		h.r.insert(n)
-		h.replaceLastNeighbor(n, d)
-	} else if h.neighborhoodSize < 8 {
-		h.r.insert(n)
-		h.neighborhoodSize += 1
+// the 8 nodes in our neighborhood, by replacing the least close one (boundary).
+func (r *routingTable) neighborhoodUpkeep(n *DHTRemoteNode) {
+	cmp := commonBits(r.nodeId, n.id)
+	if cmp == 0 {
+		// Same node id.
+		return
 	}
+	// Rewrite this stuff. Was debugging.
+	closer := r.proximity == 0 || cmp > r.proximity
+	if closer {
+		r.insert(n)
 
+		// The boundary node fell off the neighborhood. Kill it.
+		if r.distantNode != nil {
+			// This will also take care of setting a new boundary.
+			r.kill(r.distantNode)
+		} else {
+			r.resetNeighborhoodBoundary()
+		}
+	} else if r.length() < kNodes {
+		r.insert(n)
+		r.resetNeighborhoodBoundary()
+	}
+	l4g.Warn("New neighbor added to neighborhood with proximity %d", r.proximity)
 }
 
-func (h *neighborhood) isPotentialNeighbor(n *DHTRemoteNode) bool {
-	return h.neighborhoodProximity == -1 ||
-		commonBits(h.nodeId, n.id) < h.neighborhoodProximity ||
-		h.neighborhoodSize < 8
-}
-
-func (h *neighborhood) replaceLastNeighbor(n *DHTRemoteNode, proximity int) {
-	h.neighborhoodDistantNode = n
-	h.neighborhoodProximity = proximity
+func (r *routingTable) replaceLastNeighbor(n *DHTRemoteNode, proximity int) {
+	r.distantNode = n
+	r.proximity = proximity
 }
 
 var (
