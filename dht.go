@@ -272,6 +272,9 @@ func (d *DHTEngine) process(p packetType) {
 			node.id = r.R.Id
 			d.routingTable.update(node)
 		}
+		if node.id != r.R.Id {
+			l4g.Debug("DHT: Node changed IDs %x => %x", node.id, r.R.Id)
+		}
 		if query, ok := node.pendingQueries[r.T]; ok {
 			if !node.reachable {
 				node.reachable = true
@@ -485,6 +488,18 @@ func (d *DHTEngine) processGetPeerResults(node *DHTRemoteNode, resp responseType
 			// If it's in our routing table already, ignore it.
 			_, addr, ok := d.routingTable.hostPortToNode(address)
 			if ok {
+				if addr == address {
+					// This smartass is probably trying to
+					// sniff the network, or attract a lot
+					// of traffic to itself. Ignore all
+					// their results.
+					totalSelfPromotions.Add(1)
+					return
+				}
+				l4g.Trace(func() string {
+					x := hashDistance(query.ih, node.id)
+					return fmt.Sprintf("DHT: DUPE node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, addr, x)
+				})
 				totalDupes.Add(1)
 			} else {
 				// And it is actually new. Interesting.
@@ -513,6 +528,7 @@ func newNodeId() []byte {
 var (
 	totalReachableNodes          = expvar.NewInt("totalReachableNodes")
 	totalDupes                   = expvar.NewInt("totalDupes")
+	totalSelfPromotions          = expvar.NewInt("totalSelfPromotions")
 	totalPeers                   = expvar.NewInt("totalPeers")
 	totalSentPing                = expvar.NewInt("totalSentPing")
 	totalSentGetPeers            = expvar.NewInt("totalSentGetPeers")
