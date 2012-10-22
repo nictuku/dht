@@ -487,15 +487,15 @@ func (d *DHTEngine) processGetPeerResults(node *DHTRemoteNode, resp responseType
 			// XXX
 			// If it's in our routing table already, ignore it.
 			_, addr, ok := d.routingTable.hostPortToNode(address)
+			if addr == address {
+				// This smartass is probably trying to
+				// sniff the network, or attract a lot
+				// of traffic to itself. Ignore all
+				// their results.
+				totalSelfPromotions.Add(1)
+				return
+			}
 			if ok {
-				if addr == address {
-					// This smartass is probably trying to
-					// sniff the network, or attract a lot
-					// of traffic to itself. Ignore all
-					// their results.
-					totalSelfPromotions.Add(1)
-					return
-				}
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, node.id)
 					return fmt.Sprintf("DHT: DUPE node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, addr, x)
