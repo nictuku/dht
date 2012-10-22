@@ -189,6 +189,7 @@ func (r *routingTable) neighborhoodUpkeep(n *DHTRemoteNode) {
 	closer := r.proximity == 0 || cmp > r.proximity
 	if closer {
 		r.insert(n)
+		l4g.Info("New neighbor added to neighborhood with proximity %d", r.proximity)
 
 		// The boundary node fell off the neighborhood. Kill it.
 		if r.distantNode != nil {
@@ -200,8 +201,8 @@ func (r *routingTable) neighborhoodUpkeep(n *DHTRemoteNode) {
 	} else if r.length() < kNodes {
 		r.insert(n)
 		r.resetNeighborhoodBoundary()
+		l4g.Info("New neighbor added to neighborhood with proximity %d", r.proximity)
 	}
-	l4g.Warn("New neighbor added to neighborhood with proximity %d", r.proximity)
 }
 
 func (r *routingTable) replaceLastNeighbor(n *DHTRemoteNode, proximity int) {
