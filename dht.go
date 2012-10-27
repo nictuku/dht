@@ -217,8 +217,12 @@ func (d *DHTEngine) DoDHT() {
 			if peersRequest.announce {
 				d.activeInfoHashes[peersRequest.ih] = true
 			}
-			l4g.Trace("DHT: torrent client asking more peers for %x. Calling getPeers().", peersRequest.ih)
-			d.getPeers(peersRequest.ih)
+
+			if len(d.infoHashPeers[peersRequest.ih]) < d.numTargetPeers {
+				l4g.Trace("DHT: torrent client asking more peers for %x. Calling getPeers().", peersRequest.ih)
+				d.getPeers(peersRequest.ih)
+			}
+
 		case p := <-socketChan:
 			if tokenBucket > 0 {
 				d.process(p)
@@ -534,25 +538,25 @@ func (d *DHTEngine) processGetPeerResults(node *DHTRemoteNode, resp responseType
 			// XXX
 			// If it's in our routing table already, ignore it.
 			_, addr, ok := d.routingTable.hostPortToNode(address)
-			if addr == address {
+			if addr == node.address.String() {
 				// This smartass is probably trying to
 				// sniff the network, or attract a lot
 				// of traffic to itself. Ignore all
 				// their results.
 				totalSelfPromotions.Add(1)
-				return
+				continue
 			}
 			if ok {
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, node.id)
-					return fmt.Sprintf("DHT: DUPE node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, addr, x)
+					return fmt.Sprintf("DHT: DUPE node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, node.address.String(), x)
 				})
 				totalDupes.Add(1)
 			} else {
 				// And it is actually new. Interesting.
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, node.id)
-					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, addr, x)
+					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, node.address.String(), x)
 				})
 				if _, err := d.routingTable.forceNode(id, addr); err == nil {
 					if len(d.infoHashPeers[query.ih]) < d.numTargetPeers {
