@@ -217,7 +217,7 @@ func (d *DHTEngine) DoDHT() {
 			if peersRequest.announce {
 				d.activeInfoHashes[peersRequest.ih] = true
 			}
-			l4g.Trace("DHT: torrent client asking more peers for %x. Calling getPeers().", peersRequest)
+			l4g.Trace("DHT: torrent client asking more peers for %x. Calling getPeers().", peersRequest.ih)
 			d.getPeers(peersRequest.ih)
 		case p := <-socketChan:
 			if tokenBucket > 0 {
