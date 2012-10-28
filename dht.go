@@ -117,6 +117,8 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHTEngine, e
 	// The types don't match because JSON marshalling needs []byte.
 	node.nodeId = string(c.Id)
 
+	expNodeIds.Add(fmt.Sprintf("%x", node.nodeId), 0)
+
 	// XXX refactor.
 	node.routingTable.nodeId = node.nodeId
 
@@ -609,6 +611,7 @@ func newNodeId() []byte {
 }
 
 var (
+	expNodeIds                   = expvar.NewMap("nodeIds")
 	totalReachableNodes          = expvar.NewInt("totalReachableNodes")
 	totalDupes                   = expvar.NewInt("totalDupes")
 	totalSelfPromotions          = expvar.NewInt("totalSelfPromotions")
