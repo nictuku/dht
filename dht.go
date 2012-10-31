@@ -256,8 +256,12 @@ func (d *DHTEngine) helloFromPeer(addr string) {
 	// - see if we know it already, skip accordingly.
 	// - ping it and see if it's reachable.
 	// - if it responds, save it in the routing table.
-	_, addrResolved, ok := d.routingTable.hostPortToNode(addr)
-	if ok {
+	_, addrResolved, existed, err := d.routingTable.hostPortToNode(addr)
+	if err != nil {
+		l4g.Warn("helloFromPeer error: %v", err)
+		return
+	}
+	if existed {
 		// Node host+port already known.
 		return
 	}
@@ -286,8 +290,12 @@ func (d *DHTEngine) process(p packetType) {
 	switch {
 	// Response.
 	case r.Y == "r":
-		node, addr, ok := d.routingTable.hostPortToNode(p.raddr.String())
-		if !ok {
+		node, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String())
+		if err != nil {
+			l4g.Info("DHT readResponse error processing response: %v", err)
+			return
+		}
+		if !existed {
 			l4g.Info("DHT: Received reply from a host we don't know: %v", p.raddr)
 			if d.routingTable.length() < maxNodes {
 				d.ping(addr)
@@ -338,7 +346,12 @@ func (d *DHTEngine) process(p packetType) {
 			l4g.Info("DHT: Unknown query id: %v", r.T)
 		}
 	case r.Y == "q":
-		if _, addr, ok := d.routingTable.hostPortToNode(p.raddr.String()); !ok {
+		_, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String())
+		if err != nil {
+			l4g.Warn("Error readResponse error processing query: %v", err)
+			return
+		}
+		if !existed {
 			// Another candidate for the routing table. See if it's reachable.
 			if d.routingTable.length() < maxNodes {
 				d.ping(addr)
@@ -537,9 +550,12 @@ func (d *DHTEngine) processGetPeerResults(node *DHTRemoteNode, resp responseType
 	}
 	if resp.R.Nodes != "" {
 		for id, address := range parseNodesString(resp.R.Nodes) {
-			// XXX
 			// If it's in our routing table already, ignore it.
-			_, addr, ok := d.routingTable.hostPortToNode(address)
+			_, addr, existed, err := d.routingTable.hostPortToNode(address)
+			if err != nil {
+				l4g.Trace("DHT error parsing get peers node: %v", err)
+				continue
+			}
 			if addr == node.address.String() {
 				// This smartass is probably trying to
 				// sniff the network, or attract a lot
@@ -548,7 +564,7 @@ func (d *DHTEngine) processGetPeerResults(node *DHTRemoteNode, resp responseType
 				totalSelfPromotions.Add(1)
 				continue
 			}
-			if ok {
+			if existed {
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, node.id)
 					return fmt.Sprintf("DHT: DUPE node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, node.address.String(), x)
@@ -578,10 +594,14 @@ func (d *DHTEngine) processFindNodeResults(node *DHTRemoteNode, resp responseTyp
 
 	if resp.R.Nodes != "" {
 		for id, address := range parseNodesString(resp.R.Nodes) {
-			_, addr, ok := d.routingTable.hostPortToNode(address)
+			_, addr, existed, err := d.routingTable.hostPortToNode(address)
+			if err != nil {
+				l4g.Trace("DHT error parsing node from find_find response: %v", err)
+				continue
+			}
 			// SelfPromotions are more common for find_node. They are
 			// happening even for router.bittorrent.com
-			if ok {
+			if existed {
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, node.id)
 					return fmt.Sprintf("DHT: DUPE node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, addr, x)
