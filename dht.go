@@ -550,6 +550,11 @@ func (d *DHTEngine) processGetPeerResults(node *DHTRemoteNode, resp responseType
 	}
 	if resp.R.Nodes != "" {
 		for id, address := range parseNodesString(resp.R.Nodes) {
+
+			if len(d.infoHashPeers[query.ih]) >= d.numTargetPeers {
+				return
+			}
+
 			// If it's in our routing table already, ignore it.
 			_, addr, existed, err := d.routingTable.hostPortToNode(address)
 			if err != nil {
@@ -577,9 +582,7 @@ func (d *DHTEngine) processGetPeerResults(node *DHTRemoteNode, resp responseType
 					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, node.address.String(), x)
 				})
 				if _, err := d.routingTable.forceNode(id, addr); err == nil {
-					if len(d.infoHashPeers[query.ih]) < d.numTargetPeers {
-						d.getPeers(query.ih)
-					}
+					d.getPeers(query.ih)
 				}
 			}
 		}
