@@ -14,21 +14,30 @@ func newRoutingTable() *routingTable {
 	return &routingTable{
 		&nTree{},
 		make(map[string]*DHTRemoteNode),
+		"",
+		nil,
+		0,
 	}
 }
 
 type routingTable struct {
 	*nTree
 	addresses map[string]*DHTRemoteNode
+
+	// Neighborhood.
+	nodeId       string // This shouldn't be here. Move neighborhood upkeep one level up?
+	boundaryNode *DHTRemoteNode
+	// How many prefix bits are shared between boundaryNode and nodeId.
+	proximity int
 }
 
-func (r *routingTable) hostPortToNode(hostPort string) (node *DHTRemoteNode, addr string, ok bool) {
+func (r *routingTable) hostPortToNode(hostPort string) (node *DHTRemoteNode, addr string, existed bool, err error) {
 	address, err := net.ResolveUDPAddr("udp", hostPort)
 	if err != nil {
-		return nil, "", false
+		return nil, "", false, err
 	}
-	n, ok := r.addresses[address.String()]
-	return n, address.String(), ok
+	n, existed := r.addresses[address.String()]
+	return n, address.String(), existed, nil
 }
 
 func (r *routingTable) length() int {
@@ -49,8 +58,11 @@ func (r *routingTable) reachableNodes() (tbl map[string][]byte) {
 // update the existing routingTable entry for this node, giving an error if the
 // node was not found.
 func (r *routingTable) update(node *DHTRemoteNode) error {
-	_, addr, ok := r.hostPortToNode(node.address.String())
-	if !ok {
+	_, addr, existed, err := r.hostPortToNode(node.address.String())
+	if err != nil {
+		return err
+	}
+	if !existed {
 		return fmt.Errorf("node missing from the routing table:", node.address.String())
 	}
 	r.addresses[addr] = node
@@ -62,11 +74,17 @@ func (r *routingTable) update(node *DHTRemoteNode) error {
 }
 
 // insert the provided node into the routing table. Gives an error if another
-// node already existed with that address.
+// node already existed with that address. 
 func (r *routingTable) insert(node *DHTRemoteNode) error {
-	_, addr, ok := r.hostPortToNode(node.address.String())
-	if ok {
-		return fmt.Errorf("node already existed in routing table:", node.address.String())
+	if node.address == nil {
+		panic("routingTable.insert() got a node with a nil address")
+	}
+	_, addr, existed, err := r.hostPortToNode(node.address.String())
+	if err != nil {
+		return err
+	}
+	if existed {
+		return nil // fmt.Errorf("node already existed in routing table: %v", node.address.String())
 	}
 	r.addresses[addr] = node
 	// We don't know the ID of all nodes.
@@ -82,8 +100,11 @@ func (r *routingTable) insert(node *DHTRemoteNode) error {
 // which will be resolved if possible.  Preferably return an entry that is
 // already in the routing table, but create a new one otherwise, thus being idempotent.
 func (r *routingTable) forceNode(id string, hostPort string) (node *DHTRemoteNode, err error) {
-	node, addr, ok := r.hostPortToNode(hostPort)
-	if ok {
+	node, addr, existed, err := r.hostPortToNode(hostPort)
+	if err != nil {
+		return nil, err
+	}
+	if existed {
 		return node, nil
 	}
 	n, err := rand.Read(make([]byte, 1))
@@ -109,6 +130,22 @@ func (r *routingTable) kill(n *DHTRemoteNode) {
 	delete(r.addresses, n.address.String())
 	r.nTree.cut(n.id, 0)
 	totalKilledNodes.Add(1)
+
+	if n.id == r.boundaryNode.id {
+		r.resetNeighborhoodBoundary()
+	}
+}
+
+func (r *routingTable) resetNeighborhoodBoundary() {
+	r.proximity = 0
+	// Try to find a distant one within the neighborhood and promote it as
+	// the most distant node in the neighborhood.
+	neighbors := r.lookup(r.nodeId)
+	if len(neighbors) > 0 {
+		r.boundaryNode = neighbors[len(neighbors)-1]
+		r.proximity = commonBits(r.nodeId, r.boundaryNode.id)
+	}
+
 }
 
 func (r *routingTable) cleanup() (needPing []string) {
@@ -148,6 +185,42 @@ func (r *routingTable) cleanup() (needPing []string) {
 	// 4000 nodes: ~24ms.
 	l4g.Info("DHT: Routing table cleanup took %v", duration)
 	return needPing
+}
+
+// neighborhoodUpkeep will update the routingtable if the node n is closer than
+// the 8 nodes in our neighborhood, by replacing the least close one (boundary).
+func (r *routingTable) neighborhoodUpkeep(n *DHTRemoteNode) {
+	if r.proximity == 0 {
+		r.addNewNeighbor(n, true)
+		return
+	}
+	if r.length() < kNodes {
+		r.addNewNeighbor(n, false)
+		return
+	}
+	cmp := commonBits(r.nodeId, n.id)
+	if cmp == 0 {
+		// Same node id.
+		return
+	}
+	if cmp > r.proximity {
+		r.addNewNeighbor(n, true)
+		return
+	}
+}
+
+func (r *routingTable) addNewNeighbor(n *DHTRemoteNode, displaceBoundary bool) {
+	if err := r.insert(n); err != nil {
+		l4g.Warn("addNewNeighbor: %v", err)
+		return
+	}
+	if displaceBoundary && r.boundaryNode != nil {
+		// This will also take care of setting a new boundary.
+		r.kill(r.boundaryNode)
+	} else {
+		r.resetNeighborhoodBoundary()
+	}
+	l4g.Trace("New neighbor added to neighborhood with proximity %d", r.proximity)
 }
 
 var (
