@@ -376,7 +376,7 @@ func (d *DHTEngine) processPacket(p packetType) {
 }
 
 func (d *DHTEngine) ping(address string) {
-	r, err := d.routingTable.forceNode("", address)
+	r, err := d.routingTable.getOrCreateNode("", address, false)
 	if err != nil {
 		l4g.Info("ping error: %v", err)
 		return
@@ -428,7 +428,7 @@ func (d *DHTEngine) findNodeFrom(r *DHTRemoteNode, id string) {
 // our node is a peer for this infohash, using the provided token to
 // 'authenticate'.
 func (d *DHTEngine) announcePeer(address *net.UDPAddr, ih string, token string) {
-	r, err := d.routingTable.forceNode("", address.String())
+	r, err := d.routingTable.getOrCreateNode("", address.String(), false)
 	if err != nil {
 		l4g.Trace("announcePeer:", err)
 		return
@@ -458,6 +458,9 @@ func (d *DHTEngine) replyGetPeers(addr *net.UDPAddr, r responseType) {
 	}
 
 	ih := r.A.InfoHash
+	// TODO(nictuku): Implement token rotation.
+	// See https://github.com/jech/dht/blob/master/dht.c
+	// rotate_secrets(), make_token()
 	r0 := map[string]interface{}{"id": ih, "token": "blabla"}
 	reply := replyMessage{
 		T: r.T,
@@ -581,7 +584,7 @@ func (d *DHTEngine) processGetPeerResults(node *DHTRemoteNode, resp responseType
 					x := hashDistance(query.ih, node.id)
 					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, node.address.String(), x)
 				})
-				if _, err := d.routingTable.forceNode(id, addr); err == nil {
+				if _, err := d.routingTable.getOrCreateNode(id, addr, true); err == nil {
 					d.getPeers(query.ih)
 				}
 			}
@@ -615,7 +618,7 @@ func (d *DHTEngine) processFindNodeResults(node *DHTRemoteNode, resp responseTyp
 					x := hashDistance(query.ih, node.id)
 					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, addr, x)
 				})
-				if _, err := d.routingTable.forceNode(id, addr); err == nil {
+				if _, err := d.routingTable.getOrCreateNode(id, addr, true); err == nil {
 					// Using d.findNode() instead of d.findNodeFrom() ensures
 					// that only the closest neighbors are looked at.
 					d.findNode(query.ih)
