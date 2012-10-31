@@ -52,7 +52,7 @@ func TestUpkeep(t *testing.T) {
 		// routing table, but when they are displaced by closer nodes, they
 		// are killed from the neighbors list and from the routing table, so
 		// there should be no sign of them later on.
-		n := newNodeId()
+		n := randNodeId()
 		n[0] = byte(0x3d) // Ensure long distance.
 		r.neighborhoodUpkeep(genDHTRemoteNode(string(n)))
 	}

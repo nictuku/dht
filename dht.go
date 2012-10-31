@@ -110,7 +110,7 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHTEngine, e
 	c := openStore(port, storeEnabled)
 	node.store = c
 	if len(c.Id) != 20 {
-		c.Id = newNodeId()
+		c.Id = randNodeId()
 		l4g.Info("newId: %x %d", c.Id, len(c.Id))
 		saveStore(*c)
 	}
@@ -622,7 +622,7 @@ func (d *DHTEngine) processFindNodeResults(node *DHTRemoteNode, resp responseTyp
 	}
 }
 
-func newNodeId() []byte {
+func randNodeId() []byte {
 	b := make([]byte, 20)
 	if _, err := rand.Read(b); err != nil {
 		l4g.Exit("nodeId rand:", err)
