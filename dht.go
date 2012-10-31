@@ -4,8 +4,6 @@
 // Status:
 //  Supports all DHT operations from the specification, except:
 //  - TODO: handle announce_peer.
-//  - TODO: maintain a healthy neighborhood in the routing table, to guarantee
-//  the DHT performance (find_node).
 // ============================================================================
 //
 // Summary from the bittorrent DHT protocol specification: 
@@ -83,6 +81,8 @@ type DHTEngine struct {
 	conn             *net.UDPConn
 	Logger           Logger
 
+	exploredNeighborhood bool
+
 	// Public channels:
 	remoteNodeAcquaintance chan string
 	peersRequest           chan peerReq
@@ -94,9 +94,10 @@ type DHTEngine struct {
 
 func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHTEngine, err error) {
 	node = &DHTEngine{
-		port:                port,
-		routingTable:        newRoutingTable(),
-		PeersRequestResults: make(chan map[string][]string, 1),
+		port:                 port,
+		routingTable:         newRoutingTable(),
+		PeersRequestResults:  make(chan map[string][]string, 1),
+		exploredNeighborhood: false,
 		// Buffer to avoid blocking on sends.
 		remoteNodeAcquaintance: make(chan string, 10),
 		// Buffer to avoid deadlocks and blocking on sends.
@@ -115,6 +116,11 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHTEngine, e
 	}
 	// The types don't match because JSON marshalling needs []byte.
 	node.nodeId = string(c.Id)
+
+	expNodeIds.Add(fmt.Sprintf("%x", node.nodeId), 0)
+
+	// XXX refactor.
+	node.routingTable.nodeId = node.nodeId
 
 	for addr, _ := range c.Remotes {
 		go node.RemoteNodeAcquaintance(addr)
@@ -153,6 +159,25 @@ func (d *DHTEngine) getPeers(infoHash string) {
 	}
 }
 
+// Asks for more peers for a torrent.
+func (d *DHTEngine) findNode(id string) {
+	// Doesn't use lookupFiltered because we're interested in the closest
+	// results, always.
+	closest := d.routingTable.lookup(id)
+	for _, r := range closest {
+		skip := false
+		for _, q := range r.pendingQueries {
+			if q.Type == "find_node" && q.ih == id {
+				skip = true
+				break
+			}
+		}
+		if !skip {
+			go d.findNodeFrom(r, id)
+		}
+	}
+}
+
 // DoDHT is the DHT node main loop and should be run as a goroutine by the torrent client.
 func (d *DHTEngine) DoDHT() {
 	socketChan := make(chan packetType)
@@ -165,6 +190,7 @@ func (d *DHTEngine) DoDHT() {
 
 	// Bootstrap the network.
 	d.ping(dhtRouter)
+
 	cleanupTicker := time.Tick(cleanupPeriod)
 
 	saveTicker := make(<-chan time.Time)
@@ -193,8 +219,12 @@ func (d *DHTEngine) DoDHT() {
 			if peersRequest.announce {
 				d.activeInfoHashes[peersRequest.ih] = true
 			}
-			l4g.Trace("DHT: torrent client asking more peers for %x. Calling getPeers().", peersRequest)
-			d.getPeers(peersRequest.ih)
+
+			if len(d.infoHashPeers[peersRequest.ih]) < d.numTargetPeers {
+				l4g.Trace("DHT: torrent client asking more peers for %x. Calling getPeers().", peersRequest.ih)
+				d.getPeers(peersRequest.ih)
+			}
+
 		case p := <-socketChan:
 			if tokenBucket > 0 {
 				d.process(p)
@@ -208,7 +238,9 @@ func (d *DHTEngine) DoDHT() {
 				tokenBucket += rateLimit / 10
 			}
 		case <-cleanupTicker:
-			d.routingTable.cleanup()
+			for _, addr := range d.routingTable.cleanup() {
+				d.ping(addr)
+			}
 		case <-saveTicker:
 			tbl := d.routingTable.reachableNodes()
 			if len(tbl) > 5 {
@@ -224,8 +256,12 @@ func (d *DHTEngine) helloFromPeer(addr string) {
 	// - see if we know it already, skip accordingly.
 	// - ping it and see if it's reachable.
 	// - if it responds, save it in the routing table.
-	_, addrResolved, ok := d.routingTable.hostPortToNode(addr)
-	if ok {
+	_, addrResolved, existed, err := d.routingTable.hostPortToNode(addr)
+	if err != nil {
+		l4g.Warn("helloFromPeer error: %v", err)
+		return
+	}
+	if existed {
 		// Node host+port already known.
 		return
 	}
@@ -254,19 +290,25 @@ func (d *DHTEngine) process(p packetType) {
 	switch {
 	// Response.
 	case r.Y == "r":
-		node, addr, ok := d.routingTable.hostPortToNode(p.raddr.String())
-		if !ok {
+		node, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String())
+		if err != nil {
+			l4g.Info("DHT readResponse error processing response: %v", err)
+			return
+		}
+		if !existed {
 			l4g.Info("DHT: Received reply from a host we don't know: %v", p.raddr)
 			if d.routingTable.length() < maxNodes {
 				d.ping(addr)
 			}
-			// TODO: Add this guy to a list of dubious hosts.
 			return
 		}
 		// Fix the node ID.
 		if node.id == "" {
 			node.id = r.R.Id
 			d.routingTable.update(node)
+		}
+		if node.id != r.R.Id {
+			l4g.Debug("DHT: Node changed IDs %x => %x", node.id, r.R.Id)
 		}
 		if query, ok := node.pendingQueries[r.T]; ok {
 			if !node.reachable {
@@ -277,13 +319,24 @@ func (d *DHTEngine) process(p packetType) {
 			if _, ok := d.infoHashPeers[query.ih]; !ok {
 				d.infoHashPeers[query.ih] = map[string]int{}
 			}
+			d.routingTable.neighborhoodUpkeep(node)
+
+			// If this is the first host added to the routing table, attempt a
+			// recursive lookup of our own address, to build our neighborhood.
+			if !d.exploredNeighborhood {
+				d.findNode(d.nodeId)
+			}
+			d.exploredNeighborhood = true
+
 			switch query.Type {
 			case "ping":
-				// served its purpose, nothing else to be done.
+				// Served its purpose, nothing else to be done.
 				l4g.Trace("DHT: Received ping reply")
 				totalRecvPingReply.Add(1)
 			case "get_peers":
 				d.processGetPeerResults(node, r)
+			case "find_node":
+				d.processFindNodeResults(node, r)
 			default:
 				l4g.Info("DHT: Unknown query type: %v from %v", query.Type, addr)
 			}
@@ -293,7 +346,12 @@ func (d *DHTEngine) process(p packetType) {
 			l4g.Info("DHT: Unknown query id: %v", r.T)
 		}
 	case r.Y == "q":
-		if _, addr, ok := d.routingTable.hostPortToNode(p.raddr.String()); !ok {
+		_, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String())
+		if err != nil {
+			l4g.Warn("Error readResponse error processing query: %v", err)
+			return
+		}
+		if !existed {
 			// Another candidate for the routing table. See if it's reachable.
 			if d.routingTable.length() < maxNodes {
 				d.ping(addr)
@@ -345,6 +403,23 @@ func (d *DHTEngine) getPeersFrom(r *DHTRemoteNode, ih string) {
 	l4g.Trace(func() string {
 		x := hashDistance(r.id, ih)
 		return fmt.Sprintf("DHT sending get_peers. nodeID: %x , InfoHash: %x , distance: %x", r.id, ih, x)
+	})
+	sendMsg(d.conn, r.address, query)
+}
+
+func (d *DHTEngine) findNodeFrom(r *DHTRemoteNode, id string) {
+	totalSentFindNode.Add(1)
+	ty := "find_node"
+	transId := r.newQuery(ty)
+	r.pendingQueries[transId].ih = id
+	queryArguments := map[string]interface{}{
+		"id":     d.nodeId,
+		"target": id,
+	}
+	query := queryMessage{transId, "q", ty, queryArguments}
+	l4g.Trace(func() string {
+		x := hashDistance(r.id, id)
+		return fmt.Sprintf("DHT sending find_node. nodeID: %x , target ID: %x , distance: %x", r.id, id, x)
 	})
 	sendMsg(d.conn, r.address, query)
 }
@@ -475,21 +550,72 @@ func (d *DHTEngine) processGetPeerResults(node *DHTRemoteNode, resp responseType
 	}
 	if resp.R.Nodes != "" {
 		for id, address := range parseNodesString(resp.R.Nodes) {
-			// XXX
 			// If it's in our routing table already, ignore it.
-			_, addr, ok := d.routingTable.hostPortToNode(address)
-			if ok {
+			_, addr, existed, err := d.routingTable.hostPortToNode(address)
+			if err != nil {
+				l4g.Trace("DHT error parsing get peers node: %v", err)
+				continue
+			}
+			if addr == node.address.String() {
+				// This smartass is probably trying to
+				// sniff the network, or attract a lot
+				// of traffic to itself. Ignore all
+				// their results.
+				totalSelfPromotions.Add(1)
+				continue
+			}
+			if existed {
+				l4g.Trace(func() string {
+					x := hashDistance(query.ih, node.id)
+					return fmt.Sprintf("DHT: DUPE node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, node.address.String(), x)
+				})
 				totalDupes.Add(1)
 			} else {
 				// And it is actually new. Interesting.
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, node.id)
-					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, addr, x)
+					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, node.address.String(), x)
 				})
 				if _, err := d.routingTable.forceNode(id, addr); err == nil {
 					if len(d.infoHashPeers[query.ih]) < d.numTargetPeers {
 						d.getPeers(query.ih)
 					}
+				}
+			}
+		}
+	}
+}
+
+// Process another node's response to a find_node query.
+func (d *DHTEngine) processFindNodeResults(node *DHTRemoteNode, resp responseType) {
+	totalRecvFindNodeReply.Add(1)
+
+	query, _ := node.pendingQueries[resp.T]
+
+	if resp.R.Nodes != "" {
+		for id, address := range parseNodesString(resp.R.Nodes) {
+			_, addr, existed, err := d.routingTable.hostPortToNode(address)
+			if err != nil {
+				l4g.Trace("DHT error parsing node from find_find response: %v", err)
+				continue
+			}
+			// SelfPromotions are more common for find_node. They are
+			// happening even for router.bittorrent.com
+			if existed {
+				l4g.Trace(func() string {
+					x := hashDistance(query.ih, node.id)
+					return fmt.Sprintf("DHT: DUPE node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, addr, x)
+				})
+				totalDupes.Add(1)
+			} else {
+				l4g.Trace(func() string {
+					x := hashDistance(query.ih, node.id)
+					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, addr, x)
+				})
+				if _, err := d.routingTable.forceNode(id, addr); err == nil {
+					// Using d.findNode() instead of d.findNodeFrom() ensures
+					// that only the closest neighbors are looked at.
+					d.findNode(query.ih)
 				}
 			}
 		}
@@ -505,15 +631,19 @@ func newNodeId() []byte {
 }
 
 var (
+	expNodeIds                   = expvar.NewMap("nodeIds")
 	totalReachableNodes          = expvar.NewInt("totalReachableNodes")
 	totalDupes                   = expvar.NewInt("totalDupes")
+	totalSelfPromotions          = expvar.NewInt("totalSelfPromotions")
 	totalPeers                   = expvar.NewInt("totalPeers")
 	totalSentPing                = expvar.NewInt("totalSentPing")
 	totalSentGetPeers            = expvar.NewInt("totalSentGetPeers")
+	totalSentFindNode            = expvar.NewInt("totalSentFindNode")
 	totalRecvGetPeers            = expvar.NewInt("totalRecvGetPeers")
 	totalRecvGetPeersReply       = expvar.NewInt("totalRecvGetPeersReply")
 	totalRecvPingReply           = expvar.NewInt("totalRecvPingReply")
 	totalRecvFindNode            = expvar.NewInt("totalRecvFindNode")
+	totalRecvFindNodeReply       = expvar.NewInt("totalRecvFindNodeReply")
 	totalPacketsFromBlockedHosts = expvar.NewInt("totalPacketsFromBlockedHosts")
 	totalDroppedPackets          = expvar.NewInt("totalDroppedPackets")
 	totalRecv                    = expvar.NewInt("totalRecv")

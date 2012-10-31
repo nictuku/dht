@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	l4g "code.google.com/p/log4go"
 	bencode "code.google.com/p/bencode-go"
+	l4g "code.google.com/p/log4go"
 	"github.com/nictuku/nettools"
 )
 

@@ -13,11 +13,13 @@
 // try something different, that doesn't use buckets. Buckets have a single id
 // and one calculates the distance based solely on that, so there are no
 // guarantees that the bucket members are the closest nodes to the target
-// infohash. I wanted to achieve 100% precision, so I use a simple binary tree.
+// infohash.
+// 
+// To speed things up, the path to each node is compressed and later
+// uncompressed if a collision happens when inserting another node.
 //
-// I don't know how slow this is compared to a implementation that uses
-// buckets. It's not slow as you would expect for a recursion of 160 levels,
-// and it's definitely more correct.
+// I don't know how slow the overall algorithm is compared to a implementation
+// that uses buckets.
 //
 // All nodes are inserted in the binary tree, with a fixed height of 160 (20
 // bytes). To lookup an infohash, I do an inorder traversal using the infohash
@@ -96,6 +98,7 @@ func (n *nTree) put(newNode *DHTRemoteNode, i int) {
 			n.value = newNode
 			return
 		}
+		// Compression collision. Branch them out.
 		old := n.value
 		n.value = nil
 		n.branchOut(newNode, old, i)
@@ -238,6 +241,31 @@ func (n *nTree) filter(ih string) bool {
 		}
 	}
 	return true
+}
+
+func commonBits(s1, s2 string) int {
+	// copied from jch's dht.cc.
+	id1, id2 := []byte(s1), []byte(s2)
+
+	i := 0
+	for ; i < 20; i++ {
+		if id1[i] != id2[i] {
+			break
+		}
+	}
+
+	if i == 20 {
+		return 160
+	}
+
+	xor := id1[i] ^ id2[i]
+
+	j := 0
+	for (xor & 0x80) == 0 {
+		xor <<= 1
+		j++
+	}
+	return 8*i + j
 }
 
 // Calculates the distance between two hashes. In DHT/Kademlia, "distance" is
