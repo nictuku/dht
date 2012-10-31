@@ -93,7 +93,7 @@ func saveStore(s DHTStore) {
 
 		// It's not possible to atomically rename files on Windows, so I
 		// have to delete it and try again. If the program crashes between
-		// the unlink and the rename operation, it lose the configuration,
+		// the unlink and the rename operation, it loses the configuration,
 		// unfortunately.
 		if err := os.Remove(p); err != nil {
 			log.Println("saveStore failed to remove the existing config:", err)

@@ -227,7 +227,7 @@ func (d *DHTEngine) DoDHT() {
 
 		case p := <-socketChan:
 			if tokenBucket > 0 {
-				d.process(p)
+				d.processPacket(p)
 				tokenBucket -= 1
 			} else {
 				// In the future it might be better to avoid dropping things like ping replies.
@@ -271,7 +271,7 @@ func (d *DHTEngine) helloFromPeer(addr string) {
 	}
 }
 
-func (d *DHTEngine) process(p packetType) {
+func (d *DHTEngine) processPacket(p packetType) {
 	totalRecv.Add(1)
 	if !d.clientThrottle.CheckBlock(p.raddr.IP.String()) {
 		totalPacketsFromBlockedHosts.Add(1)
