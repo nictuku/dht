@@ -178,3 +178,7 @@ func readFromSocket(socket *net.UDPConn, conChan chan packetType) {
 		// debug.Println("DHT: readResponse error:", err)
 	}
 }
+
+func bogusId(id string) bool {
+	return len(id) != 20
+}

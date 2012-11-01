@@ -376,7 +376,7 @@ func (d *DHTEngine) processPacket(p packetType) {
 }
 
 func (d *DHTEngine) ping(address string) {
-	r, err := d.routingTable.getOrCreateNode("", address, false)
+	r, err := d.routingTable.getOrCreateNode("", address)
 	if err != nil {
 		l4g.Info("ping error: %v", err)
 		return
@@ -428,7 +428,7 @@ func (d *DHTEngine) findNodeFrom(r *DHTRemoteNode, id string) {
 // our node is a peer for this infohash, using the provided token to
 // 'authenticate'.
 func (d *DHTEngine) announcePeer(address *net.UDPAddr, ih string, token string) {
-	r, err := d.routingTable.getOrCreateNode("", address.String(), false)
+	r, err := d.routingTable.getOrCreateNode("", address.String())
 	if err != nil {
 		l4g.Trace("announcePeer:", err)
 		return
@@ -584,7 +584,7 @@ func (d *DHTEngine) processGetPeerResults(node *DHTRemoteNode, resp responseType
 					x := hashDistance(query.ih, node.id)
 					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, node.address.String(), x)
 				})
-				if _, err := d.routingTable.getOrCreateNode(id, addr, true); err == nil {
+				if _, err := d.routingTable.getOrCreateNode(id, addr); err == nil {
 					d.getPeers(query.ih)
 				}
 			}
@@ -618,7 +618,7 @@ func (d *DHTEngine) processFindNodeResults(node *DHTRemoteNode, resp responseTyp
 					x := hashDistance(query.ih, node.id)
 					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, addr, x)
 				})
-				if _, err := d.routingTable.getOrCreateNode(id, addr, true); err == nil {
+				if _, err := d.routingTable.getOrCreateNode(id, addr); err == nil {
 					// Using d.findNode() instead of d.findNodeFrom() ensures
 					// that only the closest neighbors are looked at.
 					d.findNode(query.ih)

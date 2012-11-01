@@ -99,13 +99,8 @@ func (r *routingTable) insert(node *DHTRemoteNode) error {
 // getOrCreateNode returns a node for hostPort, which can be an IP:port or
 // Host:port, which will be resolved if possible.  Preferably return an entry
 // that is already in the routing table, but create a new one otherwise, thus
-// being idempotent. updateRoutingTable should be set to true when the target
-// host is _potentially_ useful and should be used in future queries and be
-// provided to other hosts. In some cases, that should be true even before a
-// node is proved to be reachable - the routing table should have mostly
-// reachable nodes, but it doesn't hurt to have a few that aren't yet verified
-// to be healthy.
-func (r *routingTable) getOrCreateNode(id string, hostPort string, updateRoutingTable bool) (node *DHTRemoteNode, err error) {
+// being idempotent.
+func (r *routingTable) getOrCreateNode(id string, hostPort string) (node *DHTRemoteNode, err error) {
 	node, addr, existed, err := r.hostPortToNode(hostPort)
 	if err != nil {
 		return nil, err
@@ -129,7 +124,7 @@ func (r *routingTable) getOrCreateNode(id string, hostPort string, updateRouting
 		pendingQueries: map[string]*queryType{},
 		pastQueries:    map[string]*queryType{},
 	}
-	if updateRoutingTable && id != "" {
+	if !bogusId(id) {
 		return node, r.insert(node)
 	}
 	return node, nil
