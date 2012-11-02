@@ -88,7 +88,7 @@ func (r *routingTable) insert(node *DHTRemoteNode) error {
 	}
 	r.addresses[addr] = node
 	// We don't know the ID of all nodes.
-	if node.id != "" {
+	if !bogusId(node.id) {
 		// recursive version of node insertion.
 		r.nTree.insert(node)
 		totalNodes.Add(1)
@@ -124,10 +124,7 @@ func (r *routingTable) getOrCreateNode(id string, hostPort string) (node *DHTRem
 		pendingQueries: map[string]*queryType{},
 		pastQueries:    map[string]*queryType{},
 	}
-	if !bogusId(id) {
-		return node, r.insert(node)
-	}
-	return node, nil
+	return node, r.insert(node)
 }
 
 func (r *routingTable) kill(n *DHTRemoteNode) {
