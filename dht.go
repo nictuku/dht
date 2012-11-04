@@ -100,9 +100,9 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHTEngine, e
 		PeersRequestResults:  make(chan map[string][]string, 1),
 		exploredNeighborhood: false,
 		// Buffer to avoid blocking on sends.
-		remoteNodeAcquaintance: make(chan string, 10),
+		remoteNodeAcquaintance: make(chan string, 100),
 		// Buffer to avoid deadlocks and blocking on sends.
-		peersRequest:     make(chan peerReq, 10),
+		peersRequest:     make(chan peerReq, 100),
 		infoHashPeers:    make(map[string]map[string]int),
 		activeInfoHashes: make(map[string]bool),
 		numTargetPeers:   numTargetPeers,
@@ -124,7 +124,7 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHTEngine, e
 	node.routingTable.nodeId = node.nodeId
 
 	for addr, _ := range c.Remotes {
-		go node.RemoteNodeAcquaintance(addr)
+		node.RemoteNodeAcquaintance(addr)
 	}
 	return
 }
@@ -156,7 +156,7 @@ func (d *DHTEngine) RemoteNodeAcquaintance(addr string) {
 func (d *DHTEngine) getPeers(infoHash string) {
 	closest := d.routingTable.lookupFiltered(infoHash)
 	for _, r := range closest {
-		go d.getPeersFrom(r, infoHash)
+		d.getPeersFrom(r, infoHash)
 	}
 }
 
@@ -174,7 +174,7 @@ func (d *DHTEngine) findNode(id string) {
 			}
 		}
 		if !skip {
-			go d.findNodeFrom(r, id)
+			d.findNodeFrom(r, id)
 		}
 	}
 }
