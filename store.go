@@ -43,6 +43,7 @@ func mkdirStore() string {
 }
 
 func openStore(port int, enabled bool) (cfg *DHTStore) {
+	// TODO: File locking.
 	cfg = &DHTStore{Port: port}
 	if enabled {
 		cfg.path = mkdirStore()
