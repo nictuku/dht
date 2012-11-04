@@ -45,11 +45,12 @@ import (
 )
 
 var (
-	dhtRouter     string
-	maxNodes      int
-	cleanupPeriod time.Duration
-	savePeriod    time.Duration
-	rateLimit     int64
+	dhtRouter        string
+	maxNodes         int
+	cleanupPeriod    time.Duration
+	savePeriod       time.Duration
+	rateLimit        int64
+	rateLimitEnabled bool
 )
 
 func init() {
@@ -63,7 +64,7 @@ func init() {
 	flag.DurationVar(&savePeriod, "savePeriod", 5*time.Minute,
 		"How often to save the routing table to disk.")
 	flag.Int64Var(&rateLimit, "rateLimit", 1000,
-		"Maximum packets per second to be processed. Beyond this limit they are silently dropped.")
+		"Maximum packets per second to be processed. Beyond this limit they are silently dropped. Set to -1 to disable rate limiting.")
 }
 
 // DHTEngine should be created by NewDHTNode(). It provides DHT features to a
@@ -198,15 +199,19 @@ func (d *DHTEngine) DoDHT() {
 		saveTicker = time.Tick(savePeriod)
 	}
 
-	// Token bucket for limiting the number of packets per second.
-	fillTokenBucket := time.Tick(time.Second / 10)
+	var fillTokenBucket <-chan time.Time
 	tokenBucket := rateLimit
 
-	if rateLimit < 10 {
-		// Less than 10 leads to rounding problems.
-		rateLimit = 10
+	if rateLimit < 0 {
+		rateLimitEnabled = false
+	} else {
+		// Token bucket for limiting the number of packets per second.
+		fillTokenBucket = time.Tick(time.Second / 10)
+		if rateLimit < 10 {
+			// Less than 10 leads to rounding problems.
+			rateLimit = 10
+		}
 	}
-
 	l4g.Info("DHT: Starting DHT node %x.", d.nodeId)
 
 	for {
@@ -226,7 +231,7 @@ func (d *DHTEngine) DoDHT() {
 			}
 
 		case p := <-socketChan:
-			if tokenBucket > 0 {
+			if !rateLimitEnabled || tokenBucket > 0 {
 				d.processPacket(p)
 				tokenBucket -= 1
 			} else {
