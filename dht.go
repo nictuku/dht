@@ -204,6 +204,7 @@ func (d *DHTEngine) DoDHT() {
 
 	if rateLimit < 0 {
 		rateLimitEnabled = false
+		l4g.Warn("rate limiting disabled")
 	} else {
 		// Token bucket for limiting the number of packets per second.
 		fillTokenBucket = time.Tick(time.Second / 10)
@@ -231,12 +232,16 @@ func (d *DHTEngine) DoDHT() {
 			}
 
 		case p := <-socketChan:
-			if !rateLimitEnabled || tokenBucket > 0 {
-				d.processPacket(p)
-				tokenBucket -= 1
+			if rateLimitEnabled {
+				if tokenBucket > 0 {
+					d.processPacket(p)
+					tokenBucket -= 1
+				} else {
+					// In the future it might be better to avoid dropping things like ping replies.
+					totalDroppedPackets.Add(1)
+				}
 			} else {
-				// In the future it might be better to avoid dropping things like ping replies.
-				totalDroppedPackets.Add(1)
+				d.processPacket(p)
 			}
 		case <-fillTokenBucket:
 			if tokenBucket < rateLimit {
