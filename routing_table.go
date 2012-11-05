@@ -163,7 +163,7 @@ func (r *routingTable) resetNeighborhoodBoundary() {
 }
 
 func (r *routingTable) cleanup() (needPing []*DHTRemoteNode) {
-	needPing = make([]*DHTRemoteNode, 10)
+	needPing = make([]*DHTRemoteNode, 0, 10)
 	t0 := time.Now()
 	// Needs some serious optimization.
 	for addr, n := range r.addresses {
