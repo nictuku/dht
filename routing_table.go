@@ -22,6 +22,10 @@ func newRoutingTable() *routingTable {
 
 type routingTable struct {
 	*nTree
+	// addresses is a map of UDP addresses in host:port format and
+	// DHTRemoteNodes. A string is used because it's not possible to create
+	// a map using net.UDPAddr
+	// as a key.
 	addresses map[string]*DHTRemoteNode
 
 	// Neighborhood.
@@ -31,10 +35,19 @@ type routingTable struct {
 	proximity int
 }
 
+// hostPortToNode finds or creates a node based on the specified hostPort
+// specification, which should be a UDP address in the form "host:port".
+// Specifying an illegal string is illegal and will generate a panic.
 func (r *routingTable) hostPortToNode(hostPort string) (node *DHTRemoteNode, addr string, existed bool, err error) {
+	if hostPort == "" {
+		panic("programming error: hostPortToNode received a nil hostPort")
+	}
 	address, err := net.ResolveUDPAddr("udp", hostPort)
 	if err != nil {
 		return nil, "", false, err
+	}
+	if address.String() == "" {
+		panic("programming error: address resolution for hostPortToNode returned an empty string")
 	}
 	n, existed := r.addresses[address.String()]
 	return n, address.String(), existed, nil
