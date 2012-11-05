@@ -392,7 +392,7 @@ func (d *DHTEngine) processPacket(p packetType) {
 func (d *DHTEngine) ping(address string) {
 	r, err := d.routingTable.getOrCreateNode("", address)
 	if err != nil {
-		l4g.Info("ping error: %v", err)
+		l4g.Info("ping error for address %v: %v", address, err)
 		return
 	}
 	l4g.Debug("DHT: ping => %+v\n", address)
