@@ -252,9 +252,17 @@ func (d *DHTEngine) DoDHT() {
 				tokenBucket += rateLimit / 10
 			}
 		case <-cleanupTicker:
-			for _, addr := range d.routingTable.cleanup() {
-				d.ping(addr)
-			}
+			needPing := d.routingTable.cleanup()
+			go func(needPing []string) {
+				// Don't ping all hosts at the same time -
+				// spread them out.
+				duration := cleanupPeriod - (1 * time.Minute)
+				perPingWait := duration / time.Duration(len(needPing))
+				for _, addr := range needPing {
+					d.ping(addr)
+					<-time.After(perPingWait)
+				}
+			}(needPing)
 		case <-saveTicker:
 			tbl := d.routingTable.reachableNodes()
 			if len(tbl) > 5 {
