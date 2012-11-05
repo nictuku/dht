@@ -123,9 +123,13 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHTEngine, e
 	// XXX refactor.
 	node.routingTable.nodeId = node.nodeId
 
-	for addr, _ := range c.Remotes {
-		node.RemoteNodeAcquaintance(addr)
-	}
+	// This is called before the engine is up and ready to read from the
+	// underlying channel.	
+	go func() {
+		for addr, _ := range c.Remotes {
+			node.RemoteNodeAcquaintance(addr)
+		}
+	}()
 	return
 }
 
