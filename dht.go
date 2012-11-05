@@ -253,13 +253,13 @@ func (d *DHTEngine) DoDHT() {
 			}
 		case <-cleanupTicker:
 			needPing := d.routingTable.cleanup()
-			go func(needPing []string) {
+			go func(needPing []*DHTRemoteNode) {
 				// Don't ping all hosts at the same time -
 				// spread them out.
 				duration := cleanupPeriod - (1 * time.Minute)
 				perPingWait := duration / time.Duration(len(needPing))
-				for _, addr := range needPing {
-					d.ping(addr)
+				for _, r := range needPing {
+					d.pingNode(r)
 					<-time.After(perPingWait)
 				}
 			}(needPing)
@@ -403,7 +403,11 @@ func (d *DHTEngine) ping(address string) {
 		l4g.Info("ping error for address %v: %v", address, err)
 		return
 	}
-	l4g.Debug("DHT: ping => %+v\n", address)
+	d.pingNode(r)
+}
+
+func (d *DHTEngine) pingNode(r *DHTRemoteNode) {
+	l4g.Debug("DHT: ping => %+v\n", r.address)
 	t := r.newQuery("ping")
 
 	queryArguments := map[string]interface{}{"id": d.nodeId}

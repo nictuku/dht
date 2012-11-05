@@ -162,17 +162,27 @@ func (r *routingTable) resetNeighborhoodBoundary() {
 
 }
 
-func (r *routingTable) cleanup() (needPing []string) {
-	needPing = make([]string, 10)
+func (r *routingTable) cleanup() (needPing []*DHTRemoteNode) {
+	needPing = make([]*DHTRemoteNode, 10)
 	t0 := time.Now()
 	// Needs some serious optimization.
-	for _, n := range r.addresses {
+	for addr, n := range r.addresses {
+		if addr != n.address.String() {
+			l4g.Warn("cleanup: node address mismatches: %v != %v. Killing node", addr, n.address.String())
+			r.kill(n)
+			continue
+		}
+		if addr == "" {
+			l4g.Warn("cleanup: found empty address for node %x. Killing node", n.id)
+			r.kill(n)
+			continue
+		}
 		if n.reachable {
 			if len(n.pendingQueries) == 0 {
 				goto PING
 			}
 			if time.Since(n.lastTime) > cleanupPeriod*2 {
-				l4g.Trace("DHT: Old dude seen %v ago. Deleting.", time.Since(n.lastTime))
+				l4g.Trace("DHT: Old node seen %v ago. Deleting.", time.Since(n.lastTime))
 				r.kill(n)
 				continue
 			}
@@ -191,7 +201,7 @@ func (r *routingTable) cleanup() (needPing []string) {
 			}
 		}
 	PING:
-		needPing = append(needPing, n.address.String())
+		needPing = append(needPing, n)
 	}
 	duration := time.Since(t0)
 	// If this pauses the server for too long I may have to segment the cleanup.
