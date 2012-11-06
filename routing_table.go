@@ -60,6 +60,10 @@ func (r *routingTable) length() int {
 func (r *routingTable) reachableNodes() (tbl map[string][]byte) {
 	tbl = make(map[string][]byte)
 	for addr, r := range r.addresses {
+		if addr == "" {
+			l4g.Warn("reachableNodes: found empty address for node %x.", r.id)
+			continue
+		}
 		if r.reachable && len(r.id) == 20 {
 			tbl[addr] = []byte(r.id)
 		}
