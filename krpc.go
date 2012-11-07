@@ -1,4 +1,3 @@
-// KRPC helpers.
 package dht
 
 import (
@@ -35,6 +34,7 @@ type queryType struct {
 }
 
 const (
+	// Once in a while I get a few bigger ones, but meh.
 	maxUDPPacketSize = 4096
 	nodeContactLen   = 26
 	nodeIdLen        = 20
@@ -162,9 +162,9 @@ func listen(listenPort int) (socket *net.UDPConn, err error) {
 }
 
 // Read from UDP socket, writes slice of byte into channel.
-func readFromSocket(socket *net.UDPConn, conChan chan packetType) {
+func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena *arena) {
 	for {
-		b := make([]byte, maxUDPPacketSize)
+		b := bytesArena.Pop()
 		n, addr, err := socket.ReadFromUDP(b)
 		b = b[0:n]
 		if n == maxUDPPacketSize {

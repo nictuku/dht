@@ -1,17 +1,15 @@
 // DHT node for Taipei Torrent, for tracker-less peer information exchange.
 //
-// ============================================================================
 // Status:
 //  Supports all DHT operations from the specification, except:
 //  - TODO: handle announce_peer.
-// ============================================================================
 //
 // Summary from the bittorrent DHT protocol specification: 
 //
 // Message types:
-// - query
-// - response
-// - error
+//  - query
+//  - response
+//  - error
 //
 // RPCs:
 //      ping:
@@ -191,7 +189,8 @@ func (d *DHTEngine) DoDHT() {
 		return
 	}
 	d.conn = socket
-	go readFromSocket(socket, socketChan)
+	bytesArena := newArena(maxUDPPacketSize, 500)
+	go readFromSocket(socket, socketChan, bytesArena)
 
 	// Bootstrap the network.
 	d.ping(dhtRouter)
@@ -247,6 +246,8 @@ func (d *DHTEngine) DoDHT() {
 			} else {
 				d.processPacket(p)
 			}
+			bytesArena.Push(p.b)
+
 		case <-fillTokenBucket:
 			if tokenBucket < rateLimit {
 				tokenBucket += rateLimit / 10
