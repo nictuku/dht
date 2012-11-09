@@ -125,7 +125,7 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err err
 	// underlying channel.	
 	go func() {
 		for addr, _ := range c.Remotes {
-			node.RemoteNodeAcquaintance(addr)
+			node.AddNode(addr)
 		}
 	}()
 	return
@@ -150,7 +150,9 @@ func (d *DHT) PeersRequest(ih string, announce bool) {
 	d.peersRequest <- peerReq{ih, announce}
 }
 
-func (d *DHT) RemoteNodeAcquaintance(addr string) {
+// AddNode informs the DHT of a new node it should add to its routing table.
+// addr is a string containing the target node's "host:port" UDP address.
+func (d *DHT) AddNode(addr string) {
 	d.remoteNodeAcquaintance <- addr
 }
 
