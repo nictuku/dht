@@ -11,8 +11,11 @@ import (
 	"github.com/nictuku/nettools"
 )
 
-func ExampleDHT() {
+func init() {
 	l4g.AddFilter("stdout", l4g.WARNING, l4g.NewConsoleLogWriter())
+}
+
+func ExampleDHT() {
 	port := rand.Intn(10000) + 40000
 	d, err := NewDHTNode(port, 100, false)
 	if err != nil {

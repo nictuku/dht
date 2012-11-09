@@ -4,13 +4,7 @@ import (
 	"crypto/rand"
 	"net"
 	"testing"
-
-	l4g "code.google.com/p/log4go"
 )
-
-func init() {
-	l4g.Global.AddFilter("stdout", l4g.DEBUG, l4g.NewConsoleLogWriter())
-}
 
 const (
 	id = "01abcdefghij01234567"
