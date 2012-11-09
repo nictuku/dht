@@ -7,13 +7,8 @@ import (
 	"testing"
 	"time"
 
-	l4g "code.google.com/p/log4go"
 	"github.com/nictuku/nettools"
 )
-
-func init() {
-	l4g.AddFilter("stdout", l4g.WARNING, l4g.NewConsoleLogWriter())
-}
 
 func ExampleDHT() {
 	port := rand.Intn(10000) + 40000

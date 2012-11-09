@@ -63,6 +63,9 @@ func init() {
 		"How often to save the routing table to disk.")
 	flag.Int64Var(&rateLimit, "rateLimit", 100,
 		"Maximum packets per second to be processed. Beyond this limit they are silently dropped. Set to -1 to disable rate limiting.")
+
+	// TODO: Control the verbosity via flag.
+	l4g.AddFilter("stdout", l4g.WARNING, l4g.NewConsoleLogWriter())
 }
 
 // DHT should be created by NewDHTNode(). It provides DHT features to a
