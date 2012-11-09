@@ -1,8 +1,10 @@
+package dht
+
 // DHT routing using a binary tree and no buckets.
 //
 // Nodes have ids of 20-bytes. When looking up an infohash for itself or for a
 // remote host, the nodes have to look in its routing table for the closest
-// nodes and give out those.
+// nodes and return them.
 //
 // The distance between a node and an infohash is the XOR of the respective
 // strings. This means that 'sorting' nodes only makes sense with an infohash
@@ -11,25 +13,28 @@
 // Most bittorrent/kademlia DHT implementations use a mix of bit-by-bit
 // comparison with the usage of buckets. That works very well. But I wanted to
 // try something different, that doesn't use buckets. Buckets have a single id
-// and one calculates the distance based solely on that, so there are no
-// guarantees that the bucket members are the closest nodes to the target
-// infohash.
+// and one calculates the distance based on that, speeding up lookups.
+//
+// I decided to lay out the routing table in a binary tree instead, which is
+// more intuitive. At the moment, the implementation is a real tree, not a
+// free-list, but it's performing well.
 // 
-// To speed things up, the path to each node is compressed and later
-// uncompressed if a collision happens when inserting another node.
-//
-// I don't know how slow the overall algorithm is compared to a implementation
-// that uses buckets.
-//
 // All nodes are inserted in the binary tree, with a fixed height of 160 (20
 // bytes). To lookup an infohash, I do an inorder traversal using the infohash
 // bit for each level.
 //
-// In most cases I'll reach the end of the tree without hitting the target
-// infohash, since in the vast majority of the cases it's not in my routing
-// table. Then I simply continue the in-order traversal (but then to the
-// 'left') and return after I collect the 8 closest nodes.
-package dht
+// In most cases the lookup reaches the bottom of the tree without hitting the
+// target infohash, since in the vast majority of the cases it's not in my
+// routing table. Then I simply continue the in-order traversal (but then to
+// the 'left') and return after I collect the 8 closest nodes.
+//
+// To speed things up, I keep the tree as short as possible. The path to each
+// node is compressed and later uncompressed if a collision happens when
+// inserting another node.
+//
+// I don't know how slow the overall algorithm is compared to a implementation
+// that uses buckets, but for what is worth, the routing table lookups don't
+// even show on the CPU profiling anymore.
 
 import (
 	"time"

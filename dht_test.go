@@ -9,7 +9,7 @@ import (
 	"github.com/nictuku/nettools"
 )
 
-func startDHTNode(t *testing.T) *DHTEngine {
+func startDHTNode(t *testing.T) *DHT {
 	port := rand.Intn(10000) + 40000
 	node, err := NewDHTNode(port, 100, false)
 	node.nodeId = "abcdefghij0123456789"
