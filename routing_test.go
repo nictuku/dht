@@ -16,7 +16,7 @@ func BenchmarkInsertRecursive(b *testing.B) {
 
 	// Add 1k nodes to the tree.
 	const count = 1000
-	nodes := make([]*DHTRemoteNode, 0, count)
+	nodes := make([]*remoteNode, 0, count)
 
 	for i := 0; i < count; i++ {
 		rId := make([]byte, 4)
@@ -28,7 +28,7 @@ func BenchmarkInsertRecursive(b *testing.B) {
 			b.Fatalf("Random infohash construction error, wrong len: want %d, got %d",
 				20, len(id))
 		}
-		nodes = append(nodes, &DHTRemoteNode{id: id})
+		nodes = append(nodes, &remoteNode{id: id})
 	}
 	b.StartTimer()
 	// Each op is adding 1000 nodes to the tree.
@@ -53,12 +53,12 @@ func BenchmarkFindClosest(b *testing.B) {
 		if _, err := rand.Read(rId); err != nil {
 			b.Fatal("Couldnt produce random numbers for FindClosest:", err)
 		}
-		r := &DHTRemoteNode{
+		r := &remoteNode{
 			lastQueryID: 0,
 			id:          string(rId) + ffff,
 		}
 		if len(r.id) != 20 {
-			b.Fatalf("DHTRemoteNode construction error, wrong len: want %d, got %d",
+			b.Fatalf("remoteNode construction error, wrong len: want %d, got %d",
 				20, len(r.id))
 		}
 		r.reachable = true
@@ -78,7 +78,7 @@ type testData struct {
 	want  int // just the size.
 }
 
-var nodes = []*DHTRemoteNode{
+var nodes = []*remoteNode{
 	{id: "\x00"},
 	{id: "\x01"},
 	{id: "\x02"},

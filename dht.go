@@ -256,7 +256,7 @@ func (d *DHT) DoDHT() {
 			}
 		case <-cleanupTicker:
 			needPing := d.routingTable.cleanup()
-			go func(needPing []*DHTRemoteNode) {
+			go func(needPing []*remoteNode) {
 				// Don't ping all hosts at the same time -
 				// spread them out.
 				duration := cleanupPeriod - (1 * time.Minute)
@@ -409,7 +409,7 @@ func (d *DHT) ping(address string) {
 	d.pingNode(r)
 }
 
-func (d *DHT) pingNode(r *DHTRemoteNode) {
+func (d *DHT) pingNode(r *remoteNode) {
 	l4g.Debug("DHT: ping => %+v\n", r.address)
 	t := r.newQuery("ping")
 
@@ -419,7 +419,7 @@ func (d *DHT) pingNode(r *DHTRemoteNode) {
 	totalSentPing.Add(1)
 }
 
-func (d *DHT) getPeersFrom(r *DHTRemoteNode, ih string) {
+func (d *DHT) getPeersFrom(r *remoteNode, ih string) {
 	totalSentGetPeers.Add(1)
 	ty := "get_peers"
 	transId := r.newQuery(ty)
@@ -436,7 +436,7 @@ func (d *DHT) getPeersFrom(r *DHTRemoteNode, ih string) {
 	sendMsg(d.conn, r.address, query)
 }
 
-func (d *DHT) findNodeFrom(r *DHTRemoteNode, id string) {
+func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 	totalSentFindNode.Add(1)
 	ty := "find_node"
 	transId := r.newQuery(ty)
@@ -558,7 +558,7 @@ func (d *DHT) replyPing(addr *net.UDPAddr, response responseType) {
 // DHT.PeersRequestResults channel. If it contains closest nodes, query
 // them if we still need it. Also announce ourselves as a peer for that node,
 // unless we are in supernode mode.
-func (d *DHT) processGetPeerResults(node *DHTRemoteNode, resp responseType) {
+func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 	totalRecvGetPeersReply.Add(1)
 	query, _ := node.pendingQueries[resp.T]
 	if d.activeInfoHashes[query.ih] {
@@ -622,7 +622,7 @@ func (d *DHT) processGetPeerResults(node *DHTRemoteNode, resp responseType) {
 }
 
 // Process another node's response to a find_node query.
-func (d *DHT) processFindNodeResults(node *DHTRemoteNode, resp responseType) {
+func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 	totalRecvFindNodeReply.Add(1)
 
 	query, _ := node.pendingQueries[resp.T]

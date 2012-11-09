@@ -54,7 +54,7 @@ func TestUpkeep(t *testing.T) {
 		// there should be no sign of them later on.
 		n := randNodeId()
 		n[0] = byte(0x3d) // Ensure long distance.
-		r.neighborhoodUpkeep(genDHTRemoteNode(string(n)))
+		r.neighborhoodUpkeep(genremoteNode(string(n)))
 	}
 
 	// Current state: 8 neighbors with low proximity.
@@ -62,7 +62,7 @@ func TestUpkeep(t *testing.T) {
 	// Adds 7 neighbors from the static table. They should replace the
 	// random ones, except for one.
 	for _, v := range table[1:8] {
-		r.neighborhoodUpkeep(genDHTRemoteNode(v.id))
+		r.neighborhoodUpkeep(genremoteNode(v.id))
 	}
 
 	// Current state: 7 close neighbors, one distant dude.
@@ -97,8 +97,8 @@ func TestUpkeep(t *testing.T) {
 	}
 }
 
-func genDHTRemoteNode(id string) *DHTRemoteNode {
-	return &DHTRemoteNode{
+func genremoteNode(id string) *remoteNode {
+	return &remoteNode{
 		id:      id,
 		address: randUDPAddr(),
 	}

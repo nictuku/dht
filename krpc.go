@@ -13,7 +13,7 @@ import (
 )
 
 // Owned by the DHT engine.
-type DHTRemoteNode struct {
+type remoteNode struct {
 	address *net.UDPAddr
 	id      string
 	// lastQueryID should be incremented after consumed. Based on the
@@ -64,7 +64,7 @@ func parseNodesString(nodes string) (parsed map[string]string) {
 // newQuery creates a new transaction id and adds an entry to r.pendingQueries.
 // It does not set any extra information to the transaction information, so the
 // caller must take care of that.
-func (r *DHTRemoteNode) newQuery(transType string) (transId string) {
+func (r *remoteNode) newQuery(transType string) (transId string) {
 	r.lastQueryID = (r.lastQueryID + 1) % 256
 	transId = strconv.Itoa(r.lastQueryID)
 	r.pendingQueries[transId] = &queryType{Type: transType}
