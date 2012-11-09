@@ -61,7 +61,7 @@ func init() {
 		"How often to ping nodes in the network to see if they are reachable.")
 	flag.DurationVar(&savePeriod, "savePeriod", 5*time.Minute,
 		"How often to save the routing table to disk.")
-	flag.Int64Var(&rateLimit, "rateLimit", 1000,
+	flag.Int64Var(&rateLimit, "rateLimit", 100,
 		"Maximum packets per second to be processed. Beyond this limit they are silently dropped. Set to -1 to disable rate limiting.")
 }
 
