@@ -10,6 +10,7 @@ import (
 	"strings"
 )
 
+// DHTStore is used to persist the routing table on disk.
 type DHTStore struct {
 	// The rest of the stack uses string, but that confuses the json
 	// Marshaller. []byte is more correct anyway.
