@@ -232,7 +232,7 @@ func (d *DHT) DoDHT() {
 			}
 
 			if len(d.infoHashPeers[peersRequest.ih]) < d.numTargetPeers {
-				l4g.Trace("DHT: torrent client asking more peers for %x. Calling getPeers().", peersRequest.ih)
+				l4g.Warn("DHT: torrent client asking more peers for %x. Calling getPeers().", peersRequest.ih)
 				d.getPeers(peersRequest.ih)
 			}
 
@@ -393,7 +393,7 @@ func (d *DHT) processPacket(p packetType) {
 		// announce_peer, remember to change the
 		// get_peers reply tokens to be meaningful.
 		default:
-			l4g.Warn("DHT: non-implemented handler for type %v", r.Q)
+			l4g.Trace("DHT: non-implemented handler for type %v", r.Q)
 		}
 	default:
 		l4g.Info("DHT: Bogus DHT query from %v.", p.raddr)

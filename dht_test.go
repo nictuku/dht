@@ -1,13 +1,45 @@
 package dht
 
 import (
+	"fmt"
 	"math/rand"
 	"net"
 	"testing"
 	"time"
 
+	l4g "code.google.com/p/log4go"
 	"github.com/nictuku/nettools"
 )
+
+func ExampleDHT() {
+	l4g.AddFilter("stdout", l4g.WARNING, l4g.NewConsoleLogWriter())
+	d, err := NewDHTNode(19881, 100, false)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	go d.DoDHT()
+
+	// Give the DHT some time to "warm-up" its routing table.
+	time.Sleep(5 * time.Second)
+
+	d.PeersRequest("\xd1\xc5\x67\x6a\xe7\xac\x98\xe8\xb1\x9f\x63\x56\x59\x05\x10\x5e\x3c\x4c\x37\xa2", false)
+
+	infoHashPeers := <-d.PeersRequestResults
+	for ih, peers := range infoHashPeers {
+		if len(peers) > 0 {
+			fmt.Printf("peer found for infohash [%x]\n", ih)
+			// Peers are encoded in binary format. Decoding example using github.com/nictuku/nettools:
+			// for _, peer := range peers {
+			// 	fmt.Println(nettools.BinaryToDottedPort(peer))
+			// }
+			return
+		}
+	}
+
+	// Output:
+	// peer found for infohash [d1c5676ae7ac98e8b19f63565905105e3c4c37a2]
+}
 
 func startDHTNode(t *testing.T) *DHT {
 	port := rand.Intn(10000) + 40000

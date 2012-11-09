@@ -182,3 +182,9 @@ func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena *ar
 func bogusId(id string) bool {
 	return len(id) != 20
 }
+
+// DecodePeerAddress transforms the binary-encoded host:port address into a
+// human-readable format. So, "abcdef" becomes 97.98.99.100:25958.
+func DecodePeerAddress(x string) string {
+	return nettools.BinaryToDottedPort(x)
+}
