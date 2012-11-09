@@ -107,7 +107,7 @@ func TestDHTLarge(t *testing.T) {
 			t.Fatal("Could not find new torrent peers.")
 		}
 		for _, peer := range peers {
-			t.Logf("peer found: %+v\n", nettools.BinaryToDottedPort(peer))
+			t.Logf("peer found: %v", nettools.BinaryToDottedPort(peer))
 		}
 	}
 	t.Logf("=== Stats ===")
