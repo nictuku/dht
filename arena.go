@@ -4,7 +4,7 @@ import "sync"
 
 // arena is a free list that provides quick access to pre-allocated byte
 // slices, greatly reducing memory churn and effectively disabling GC for these
-// allocations. After the arena is created, a slice of bytes can be used by
+// allocations. After the arena is created, a slice of bytes can be requested by
 // calling Pop(). The caller is responsible for calling Push(), which puts the
 // blocks back in the queue for later usage. The bytes given by Pop() are *not*
 // zeroed, so the caller should only read positions that it knows to have been
@@ -30,7 +30,7 @@ func (a *arena) Pop() (x []byte) {
 	a.Lock()
 	defer a.Unlock()
 	if len(a.blocks) == 0 {
-		panic("arena out of space")
+		// panic("arena out of space")
 		return make([]byte, a.bsize)
 	}
 	x, a.blocks = a.blocks[len(a.blocks)-1], a.blocks[:len(a.blocks)-1]
