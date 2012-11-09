@@ -13,7 +13,8 @@ import (
 
 func ExampleDHT() {
 	l4g.AddFilter("stdout", l4g.WARNING, l4g.NewConsoleLogWriter())
-	d, err := NewDHTNode(19881, 100, false)
+	port := rand.Intn(10000) + 40000
+	d, err := NewDHTNode(port, 100, false)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -31,7 +32,7 @@ func ExampleDHT() {
 			fmt.Printf("peer found for infohash [%x]\n", ih)
 			// Peers are encoded in binary format. Decoding example using github.com/nictuku/nettools:
 			// for _, peer := range peers {
-			// 	fmt.Println(nettools.BinaryToDottedPort(peer))
+			// 	fmt.Println(DecodePeerAddress(peer))
 			// }
 			return
 		}
