@@ -500,22 +500,32 @@ func (d *DHT) replyGetPeers(addr *net.UDPAddr, r responseType) {
 		R: r0,
 	}
 
-	if peers, ok := d.infoHashPeers[ih]; ok {
-		peerContacts := make([]string, 0, len(peers))
-		for p, _ := range peers {
-			peerContacts = append(peerContacts, p)
-		}
-		l4g.Trace("replyGetPeers: Giving peers! %v wanted %x, and we knew %d peers!", addr.String(), ih, len(peerContacts))
+	if peerContacts := d.peersForInfoHash(ih); len(peerContacts) > 0 {
 		reply.R["values"] = peerContacts
 	} else {
-		n := make([]string, 0, kNodes)
-		for _, r := range d.routingTable.lookupFiltered(ih) {
-			n = append(n, r.id+nettools.DottedPortToBinary(r.address.String()))
-		}
-		l4g.Trace("replyGetPeers: Nodes only. Giving %d", len(n))
-		reply.R["nodes"] = strings.Join(n, "")
+		reply.R["nodes"] = d.nodesForInfoHash(ih)
 	}
 	sendMsg(d.conn, addr, reply)
+}
+
+func (d *DHT) nodesForInfoHash(ih string) string {
+	n := make([]string, 0, kNodes)
+	for _, r := range d.routingTable.lookupFiltered(ih) {
+		n = append(n, r.id+nettools.DottedPortToBinary(r.address.String()))
+	}
+	l4g.Trace("replyGetPeers: Nodes only. Giving %d", len(n))
+	return strings.Join(n, "")
+}
+
+func (d *DHT) peersForInfoHash(ih string) []string {
+	peerContacts := make([]string, 0, kNodes)
+	for p, _ := range d.infoHashPeers[ih] {
+		peerContacts = append(peerContacts, p)
+	}
+
+	l4g.Trace("replyGetPeers: Giving peers! %x was requested, and we knew %d peers!", ih, len(peerContacts))
+
+	return peerContacts
 }
 
 func (d *DHT) replyFindNode(addr *net.UDPAddr, r responseType) {
