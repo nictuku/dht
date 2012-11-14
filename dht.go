@@ -361,6 +361,8 @@ func (d *DHT) processPacket(p packetType) {
 				d.processGetPeerResults(node, r)
 			case "find_node":
 				d.processFindNodeResults(node, r)
+			case "announce_peer":
+				// Nothing to do. In the future, update counters.
 			default:
 				l4g.Info("DHT: Unknown query type: %v from %v", query.Type, addr)
 			}
