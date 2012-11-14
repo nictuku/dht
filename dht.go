@@ -474,9 +474,11 @@ func (d *DHT) announcePeer(address *net.UDPAddr, ih string, token string) {
 }
 
 func (d *DHT) replyAnnouncePeer(addr *net.UDPAddr, r responseType) {
-	l4g.Warn("DHT: announce_peer. Host %v, nodeID: %x, infoHash: %x, peerPort %d, distance to me %x",
-		addr, r.A.Id, r.A.InfoHash, r.A.Port, hashDistance(r.A.InfoHash, d.nodeId),
-	)
+	l4g.Trace(func() string {
+		return fmt.Sprintf("DHT: announce_peer. Host %v, nodeID: %x, infoHash: %x, peerPort %d, distance to me %x",
+			addr, r.A.Id, r.A.InfoHash, r.A.Port, hashDistance(r.A.InfoHash, d.nodeId),
+		)
+	})
 	peerAddr := net.TCPAddr{IP: addr.IP, Port: r.A.Port}
 	d.hashStore.addContact(r.A.InfoHash, nettools.DottedPortToBinary(peerAddr.String()))
 	// Always reply positively. jech says this is to avoid "back-tracking", not sure what that means.
@@ -491,8 +493,7 @@ func (d *DHT) replyAnnouncePeer(addr *net.UDPAddr, r responseType) {
 func (d *DHT) replyGetPeers(addr *net.UDPAddr, r responseType) {
 	totalRecvGetPeers.Add(1)
 	l4g.Info(func() string {
-		x := hashDistance(r.A.InfoHash, d.nodeId)
-		return fmt.Sprintf("DHT get_peers. Host: %v , nodeID: %x , InfoHash: %x , distance to me: %x", addr, r.A.Id, r.A.InfoHash, x)
+		return fmt.Sprintf("DHT get_peers. Host: %v , nodeID: %x , InfoHash: %x , distance to me: %x", addr, r.A.Id, r.A.InfoHash, hashDistance(r.A.InfoHash, d.nodeId))
 	})
 
 	if d.Logger != nil {
