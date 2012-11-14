@@ -185,7 +185,8 @@ func (r *routingTable) cleanup() (needPing []*remoteNode) {
 			if len(n.pendingQueries) == 0 {
 				goto PING
 			}
-			if time.Since(n.lastTime) > cleanupPeriod*2 {
+			// Tolerate 2 cleanup cycles.
+			if time.Since(n.lastTime) > cleanupPeriod*2+(time.Minute) {
 				l4g.Trace("DHT: Old node seen %v ago. Deleting.", time.Since(n.lastTime))
 				r.kill(n)
 				continue

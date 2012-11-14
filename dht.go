@@ -57,7 +57,7 @@ func init() {
 		"IP:Port address of the DHT router used to bootstrap the DHT network.")
 	flag.IntVar(&maxNodes, "maxNodes", 1000,
 		"Maximum number of nodes to store in the routing table, in memory.")
-	flag.DurationVar(&cleanupPeriod, "cleanupPeriod", 10*time.Minute,
+	flag.DurationVar(&cleanupPeriod, "cleanupPeriod", 15*time.Minute,
 		"How often to ping nodes in the network to see if they are reachable.")
 	flag.DurationVar(&savePeriod, "savePeriod", 5*time.Minute,
 		"How often to save the routing table to disk.")
