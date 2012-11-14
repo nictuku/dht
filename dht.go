@@ -474,12 +474,18 @@ func (d *DHT) announcePeer(address *net.UDPAddr, ih string, token string) {
 }
 
 func (d *DHT) replyAnnouncePeer(addr *net.UDPAddr, r responseType) {
-	l4g.Trace("DHT: non-implemented handler for type %v", r.Q)
 	l4g.Warn("DHT: announce_peer. Host %v, nodeID: %x, infoHash: %x, peerPort %d, distance to me %x",
 		addr, r.A.Id, r.A.InfoHash, r.A.Port, hashDistance(r.A.InfoHash, d.nodeId),
 	)
 	peerAddr := net.TCPAddr{IP: addr.IP, Port: r.A.Port}
 	d.hashStore.addContact(r.A.InfoHash, nettools.DottedPortToBinary(peerAddr.String()))
+	// Always reply positively. jech says this is to avoid "back-tracking", not sure what that means.
+	reply := replyMessage{
+		T: r.T,
+		Y: "r",
+		R: map[string]interface{}{"id": d.nodeId},
+	}
+	sendMsg(d.conn, addr, reply)
 }
 
 func (d *DHT) replyGetPeers(addr *net.UDPAddr, r responseType) {
