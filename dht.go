@@ -76,12 +76,11 @@ type DHT struct {
 	port   int
 
 	routingTable *routingTable
+	hashStore    *hashStore
 
-	infoHashPeers    map[string]map[string]int // key1 == infoHash, key2 == address in binary form. value=ignored.
-	activeInfoHashes map[string]bool           // infoHashes for which we are peers.
-	numTargetPeers   int
-	conn             *net.UDPConn
-	Logger           Logger
+	numTargetPeers int
+	conn           *net.UDPConn
+	Logger         Logger
 
 	exploredNeighborhood bool
 
@@ -98,16 +97,16 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err err
 	node = &DHT{
 		port:                 port,
 		routingTable:         newRoutingTable(),
+		hashStore:            newHashStore(),
 		PeersRequestResults:  make(chan map[string][]string, 1),
 		exploredNeighborhood: false,
 		// Buffer to avoid blocking on sends.
 		remoteNodeAcquaintance: make(chan string, 100),
 		// Buffer to avoid deadlocks and blocking on sends.
-		peersRequest:     make(chan peerReq, 100),
-		infoHashPeers:    make(map[string]map[string]int),
-		activeInfoHashes: make(map[string]bool),
-		numTargetPeers:   numTargetPeers,
-		clientThrottle:   nettools.NewThrottler(),
+		peersRequest: make(chan peerReq, 100),
+
+		numTargetPeers: numTargetPeers,
+		clientThrottle: nettools.NewThrottler(),
 	}
 	c := openStore(port, storeEnabled)
 	node.store = c
@@ -231,10 +230,10 @@ func (d *DHT) DoDHT() {
 			// torrent server is asking for more peers for a particular infoHash.  Ask the closest nodes for
 			// directions. The goroutine will write into the PeersNeededResults channel.
 			if peersRequest.announce {
-				d.activeInfoHashes[peersRequest.ih] = true
+				d.hashStore.addLocalDownload(peersRequest.ih)
 			}
 
-			if len(d.infoHashPeers[peersRequest.ih]) < d.numTargetPeers {
+			if d.hashStore.count(peersRequest.ih) < d.numTargetPeers {
 				l4g.Warn("DHT: torrent client asking more peers for %x. Calling getPeers().", peersRequest.ih)
 				d.getPeers(peersRequest.ih)
 			}
@@ -344,9 +343,6 @@ func (d *DHT) processPacket(p packetType) {
 				totalReachableNodes.Add(1)
 			}
 			node.lastTime = time.Now()
-			if _, ok := d.infoHashPeers[query.ih]; !ok {
-				d.infoHashPeers[query.ih] = map[string]int{}
-			}
 			d.routingTable.neighborhoodUpkeep(node)
 
 			// If this is the first host added to the routing table, attempt a
@@ -392,9 +388,8 @@ func (d *DHT) processPacket(p packetType) {
 			d.replyGetPeers(p.raddr, r)
 		case "find_node":
 			d.replyFindNode(p.raddr, r)
-		// When implementing a handler for
-		// announce_peer, remember to change the
-		// get_peers reply tokens to be meaningful.
+		case "announce_peer":
+			d.replyAnnouncePeer(p.raddr, r)
 		default:
 			l4g.Trace("DHT: non-implemented handler for type %v", r.Q)
 		}
@@ -478,6 +473,13 @@ func (d *DHT) announcePeer(address *net.UDPAddr, ih string, token string) {
 	sendMsg(d.conn, address, query)
 }
 
+func (d *DHT) replyAnnouncePeer(addr *net.UDPAddr, r responseType) {
+	l4g.Trace("DHT: non-implemented handler for type %v", r.Q)
+	// When implementing a handler for
+	// announce_peer, remember to change the
+	// get_peers reply tokens to be meaningful.
+}
+
 func (d *DHT) replyGetPeers(addr *net.UDPAddr, r responseType) {
 	totalRecvGetPeers.Add(1)
 	l4g.Info(func() string {
@@ -518,13 +520,10 @@ func (d *DHT) nodesForInfoHash(ih string) string {
 }
 
 func (d *DHT) peersForInfoHash(ih string) []string {
-	peerContacts := make([]string, 0, kNodes)
-	for p, _ := range d.infoHashPeers[ih] {
-		peerContacts = append(peerContacts, p)
+	peerContacts := d.hashStore.peerContacts(ih)
+	if len(peerContacts) > 0 {
+		l4g.Trace("replyGetPeers: Giving peers! %x was requested, and we knew %d peers!", ih, len(peerContacts))
 	}
-
-	l4g.Trace("replyGetPeers: Giving peers! %x was requested, and we knew %d peers!", ih, len(peerContacts))
-
 	return peerContacts
 }
 
@@ -574,19 +573,18 @@ func (d *DHT) replyPing(addr *net.UDPAddr, response responseType) {
 func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 	totalRecvGetPeersReply.Add(1)
 	query, _ := node.pendingQueries[resp.T]
-	if d.activeInfoHashes[query.ih] {
+	if d.hashStore.hasLocalDownload(query.ih) {
 		d.announcePeer(node.address, query.ih, resp.R.Token)
 	}
 	if resp.R.Values != nil {
 		peers := make([]string, 0)
 		for _, peerContact := range resp.R.Values {
-			if _, ok := d.infoHashPeers[query.ih][peerContact]; !ok {
-				// Finally, a new peer.
-				d.infoHashPeers[query.ih][peerContact] = 0
+			if ok := d.hashStore.addContact(query.ih, peerContact); ok {
 				peers = append(peers, peerContact)
 			}
 		}
 		if len(peers) > 0 {
+			// Finally, new peers.
 			result := map[string][]string{query.ih: peers}
 			totalPeers.Add(int64(len(peers)))
 			l4g.Info("DHT: processGetPeerResults, totalPeers: %v", totalPeers.String())
@@ -596,7 +594,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 	if resp.R.Nodes != "" {
 		for id, address := range parseNodesString(resp.R.Nodes) {
 
-			if len(d.infoHashPeers[query.ih]) >= d.numTargetPeers {
+			if d.hashStore.count(query.ih) >= d.numTargetPeers {
 				return
 			}
 
