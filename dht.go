@@ -504,7 +504,7 @@ func (d *DHT) replyGetPeers(addr *net.UDPAddr, r responseType) {
 	// TODO(nictuku): Implement token rotation.
 	// See https://github.com/jech/dht/blob/master/dht.c
 	// rotate_secrets(), make_token()
-	r0 := map[string]interface{}{"id": ih, "token": "blabla"}
+	r0 := map[string]interface{}{"id": d.nodeId, "token": "blabla"}
 	reply := replyMessage{
 		T: r.T,
 		Y: "r",
@@ -544,7 +544,7 @@ func (d *DHT) replyFindNode(addr *net.UDPAddr, r responseType) {
 	})
 
 	node := r.A.Target
-	r0 := map[string]interface{}{"id": node}
+	r0 := map[string]interface{}{"id": d.nodeId}
 	reply := replyMessage{
 		T: r.T,
 		Y: "r",
