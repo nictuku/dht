@@ -475,9 +475,11 @@ func (d *DHT) announcePeer(address *net.UDPAddr, ih string, token string) {
 
 func (d *DHT) replyAnnouncePeer(addr *net.UDPAddr, r responseType) {
 	l4g.Trace("DHT: non-implemented handler for type %v", r.Q)
-	// When implementing a handler for
-	// announce_peer, remember to change the
-	// get_peers reply tokens to be meaningful.
+	l4g.Warn("DHT: announce_peer. Host %v, nodeID: %x, infoHash: %x, peerPort %d, distance to me %x",
+		addr, r.A.Id, r.A.InfoHash, r.A.Port, hashDistance(r.A.InfoHash, d.nodeId),
+	)
+	peerAddr := net.TCPAddr{IP: addr.IP, Port: r.A.Port}
+	d.hashStore.addContact(r.A.InfoHash, nettools.DottedPortToBinary(peerAddr.String()))
 }
 
 func (d *DHT) replyGetPeers(addr *net.UDPAddr, r responseType) {
@@ -624,7 +626,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 					x := hashDistance(query.ih, node.id)
 					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, node.address.String(), x)
 				})
-				if _, err := d.routingTable.getOrCreateNode(id, addr); err == nil && len(d.infoHashPeers[query.ih]) < d.numTargetPeers {
+				if _, err := d.routingTable.getOrCreateNode(id, addr); err == nil && d.hashStore.count(query.ih) < d.numTargetPeers {
 					d.getPeers(query.ih)
 				}
 			}
