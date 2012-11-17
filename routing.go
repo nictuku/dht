@@ -18,7 +18,7 @@ package dht
 // I decided to lay out the routing table in a binary tree instead, which is
 // more intuitive. At the moment, the implementation is a real tree, not a
 // free-list, but it's performing well.
-// 
+//
 // All nodes are inserted in the binary tree, with a fixed height of 160 (20
 // bytes). To lookup an infohash, I do an inorder traversal using the infohash
 // bit for each level.
