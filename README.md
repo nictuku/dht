@@ -1,4 +1,4 @@
-This is a Kademlia/Bittorrent DHT library that implements [BEP
+This is a golang Kademlia/Bittorrent DHT library that implements [BEP
 5](http://www.bittorrent.org/beps/bep_0005.html).
 
 It's typically used by a torrent client such as
