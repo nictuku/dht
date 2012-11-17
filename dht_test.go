@@ -1,9 +1,11 @@
 package dht
 
 import (
+	"expvar"
 	"fmt"
 	"math/rand"
 	"net"
+	"strconv"
 	"testing"
 	"time"
 
@@ -19,12 +21,26 @@ func ExampleDHT() {
 	}
 	go d.DoDHT()
 
+	infoHash, err := DecodeInfoHash("d1c5676ae7ac98e8b19f63565905105e3c4c37a2")
+	if err != nil {
+		fmt.Printf("DecodeInfoHash faiure: %v", err)
+		return
+	}
+
 	// Give the DHT some time to "warm-up" its routing table.
 	time.Sleep(5 * time.Second)
 
-	d.PeersRequest("\xd1\xc5\x67\x6a\xe7\xac\x98\xe8\xb1\x9f\x63\x56\x59\x05\x10\x5e\x3c\x4c\x37\xa2", false)
+	d.PeersRequest(string(infoHash), false)
 
-	infoHashPeers := <-d.PeersRequestResults
+	timeout := time.After(30 * time.Second)
+	var infoHashPeers map[string][]string
+	select {
+	case infoHashPeers = <-d.PeersRequestResults:
+		break
+	case <-timeout:
+		fmt.Printf("Could not find new peers: timed out")
+		return
+	}
 	for ih, peers := range infoHashPeers {
 		if len(peers) > 0 {
 			fmt.Printf("peer found for infohash [%x]\n", ih)
@@ -64,15 +80,25 @@ func TestDHTLarge(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		node.ping(ip[0] + ":6881")
+		node.AddNode(ip[0] + ":6881")
 	}
 
 	// Test that we can reach at least one node.
 	success := false
+	var (
+		reachable int
+		v         expvar.Var
+		err       error
+	)
 	for i := 0; i < 10; i++ {
-		tbl := node.routingTable.reachableNodes()
-		if len(tbl) > 0 {
-			t.Logf("Contacted %d DHT nodes.", len(tbl))
+		v = expvar.Get("totalReachableNodes")
+		reachable, err = strconv.Atoi(v.String())
+		if err != nil {
+			t.Errorf("totalReachableNodes conversion to int failed: %v", err)
+			continue
+		}
+		if reachable > 0 {
+			t.Logf("Contacted %d DHT nodes.", reachable)
 			success = true
 			break
 		}

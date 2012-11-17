@@ -90,7 +90,7 @@ func (r *routingTable) update(node *remoteNode) error {
 }
 
 // insert the provided node into the routing table. Gives an error if another
-// node already existed with that address. 
+// node already existed with that address.
 func (r *routingTable) insert(node *remoteNode) error {
 	if node.address == nil {
 		panic("routingTable.insert() got a node with a nil address")

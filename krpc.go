@@ -3,7 +3,9 @@ package dht
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/hex"
 	"expvar"
+	"fmt"
 	"net"
 	"strconv"
 	"time"
@@ -204,6 +206,19 @@ func newTransactionId() int {
 		return time.Now().Second()
 	}
 	return n
+}
+
+type InfoHash string
+
+// DecodeInfoHash transforms a hex-encoded 20-characters string to a binary
+// infohash.
+func DecodeInfoHash(x string) (b InfoHash, err error) {
+	var h []byte
+	h, err = hex.DecodeString(x)
+	if len(h) != 20 {
+		return "", fmt.Errorf("DecodeInfoHash: expected InfoHash len=20, got %d", len(h))
+	}
+	return InfoHash(h), err
 }
 
 // DecodePeerAddress transforms the binary-encoded host:port address into a

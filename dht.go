@@ -5,7 +5,7 @@
 
 package dht
 
-// Summary from the bittorrent DHT protocol specification: 
+// Summary from the bittorrent DHT protocol specification:
 //
 // Message types:
 //  - query
@@ -48,7 +48,7 @@ var (
 	cleanupPeriod    time.Duration
 	savePeriod       time.Duration
 	rateLimit        int64
-	rateLimitEnabled bool
+	rateLimitEnabled = true
 )
 
 func init() {
@@ -124,7 +124,7 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err err
 	node.routingTable.nodeId = node.nodeId
 
 	// This is called before the engine is up and ready to read from the
-	// underlying channel.	
+	// underlying channel.
 	go func() {
 		for addr, _ := range c.Remotes {
 			node.AddNode(addr)

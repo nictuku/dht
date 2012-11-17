@@ -168,7 +168,7 @@ func TestNodeDistance(t *testing.T) {
 // #2 not-checked in attempt to use a trie. Not even correct.
 // BenchmarkFindClosest	       1	1072682000 ns/op
 //
-// #3 only compare bytes that we need. 
+// #3 only compare bytes that we need.
 // BenchmarkFindClosest	       1	1116333000 ns/op
 //
 // #4 moved to buckets, but using only one.
