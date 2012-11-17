@@ -59,7 +59,12 @@ func (h *peerStore) peerContacts(ih string) []string {
 	// peers is a map, but I need a randomized set of 8 nodes to return.
 	// Choose eight continguous ones starting from a random position.
 	// Pseudo-random and un-seeded is fine.
-	first := rand.Intn(len(peers) - kNodes)
+	skip := len(peers) - kNodes
+	if skip < 0 {
+		skip = 0
+	}
+	first := rand.Intn(skip)
+
 	i := -1
 	for p, _ := range peers {
 		i++
