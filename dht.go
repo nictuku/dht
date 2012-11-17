@@ -76,7 +76,7 @@ type DHT struct {
 	port   int
 
 	routingTable *routingTable
-	hashStore    *hashStore
+	peerStore    *peerStore
 
 	numTargetPeers int
 	conn           *net.UDPConn
@@ -97,7 +97,7 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err err
 	node = &DHT{
 		port:                 port,
 		routingTable:         newRoutingTable(),
-		hashStore:            newHashStore(),
+		peerStore:            newPeerStore(),
 		PeersRequestResults:  make(chan map[string][]string, 1),
 		exploredNeighborhood: false,
 		// Buffer to avoid blocking on sends.
@@ -230,10 +230,10 @@ func (d *DHT) DoDHT() {
 			// torrent server is asking for more peers for a particular infoHash.  Ask the closest nodes for
 			// directions. The goroutine will write into the PeersNeededResults channel.
 			if peersRequest.announce {
-				d.hashStore.addLocalDownload(peersRequest.ih)
+				d.peerStore.addLocalDownload(peersRequest.ih)
 			}
 
-			if d.hashStore.count(peersRequest.ih) < d.numTargetPeers {
+			if d.peerStore.count(peersRequest.ih) < d.numTargetPeers {
 				l4g.Warn("DHT: torrent client asking more peers for %x. Calling getPeers().", peersRequest.ih)
 				d.getPeers(peersRequest.ih)
 			}
@@ -482,7 +482,7 @@ func (d *DHT) replyAnnouncePeer(addr *net.UDPAddr, r responseType) {
 		)
 	})
 	peerAddr := net.TCPAddr{IP: addr.IP, Port: r.A.Port}
-	d.hashStore.addContact(r.A.InfoHash, nettools.DottedPortToBinary(peerAddr.String()))
+	d.peerStore.addContact(r.A.InfoHash, nettools.DottedPortToBinary(peerAddr.String()))
 	// Always reply positively. jech says this is to avoid "back-tracking", not sure what that means.
 	reply := replyMessage{
 		T: r.T,
@@ -531,7 +531,7 @@ func (d *DHT) nodesForInfoHash(ih string) string {
 }
 
 func (d *DHT) peersForInfoHash(ih string) []string {
-	peerContacts := d.hashStore.peerContacts(ih)
+	peerContacts := d.peerStore.peerContacts(ih)
 	if len(peerContacts) > 0 {
 		l4g.Trace("replyGetPeers: Giving peers! %x was requested, and we knew %d peers!", ih, len(peerContacts))
 	}
@@ -584,13 +584,13 @@ func (d *DHT) replyPing(addr *net.UDPAddr, response responseType) {
 func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 	totalRecvGetPeersReply.Add(1)
 	query, _ := node.pendingQueries[resp.T]
-	if d.hashStore.hasLocalDownload(query.ih) {
+	if d.peerStore.hasLocalDownload(query.ih) {
 		d.announcePeer(node.address, query.ih, resp.R.Token)
 	}
 	if resp.R.Values != nil {
 		peers := make([]string, 0)
 		for _, peerContact := range resp.R.Values {
-			if ok := d.hashStore.addContact(query.ih, peerContact); ok {
+			if ok := d.peerStore.addContact(query.ih, peerContact); ok {
 				peers = append(peers, peerContact)
 			}
 		}
@@ -605,7 +605,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 	if resp.R.Nodes != "" {
 		for id, address := range parseNodesString(resp.R.Nodes) {
 
-			if d.hashStore.count(query.ih) >= d.numTargetPeers {
+			if d.peerStore.count(query.ih) >= d.numTargetPeers {
 				return
 			}
 
@@ -635,7 +635,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 					x := hashDistance(query.ih, node.id)
 					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, node.address.String(), x)
 				})
-				if _, err := d.routingTable.getOrCreateNode(id, addr); err == nil && d.hashStore.count(query.ih) < d.numTargetPeers {
+				if _, err := d.routingTable.getOrCreateNode(id, addr); err == nil && d.peerStore.count(query.ih) < d.numTargetPeers {
 					d.getPeers(query.ih)
 				}
 			}

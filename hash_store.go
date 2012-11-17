@@ -17,26 +17,26 @@ func (p peerContactsSet) Size() int {
 	return len(p)
 }
 
-func newHashStore() *hashStore {
-	return &hashStore{
+func newPeerStore() *peerStore {
+	return &peerStore{
 		infoHashPeers:        cache.NewLRUCache(maxInfoHashes),
 		localActiveDownloads: make(peerContactsSet),
 	}
 }
 
-type hashStore struct {
+type peerStore struct {
 	// cache of peers for infohashes. Each key is an infohash and the values are peerContactsSet.
 	infoHashPeers *cache.LRUCache
 	// infoHashes for which we are peers.
 	localActiveDownloads map[string]bool
 }
 
-func (h *hashStore) size() int {
+func (h *peerStore) size() int {
 	length, _, _, _ := h.infoHashPeers.Stats()
 	return int(length)
 }
 
-func (h *hashStore) get(ih string) peerContactsSet {
+func (h *peerStore) get(ih string) peerContactsSet {
 	c, ok := h.infoHashPeers.Get(ih)
 	if !ok {
 		return nil
@@ -46,11 +46,11 @@ func (h *hashStore) get(ih string) peerContactsSet {
 }
 
 // count shows the number of know peers for the given infohash.
-func (h *hashStore) count(ih string) int {
+func (h *peerStore) count(ih string) int {
 	return len(h.get(ih))
 }
 
-func (h *hashStore) peerContacts(ih string) []string {
+func (h *peerStore) peerContacts(ih string) []string {
 	c := make([]string, 0, kNodes)
 	for p, _ := range h.get(ih) {
 		c = append(c, p)
@@ -59,7 +59,7 @@ func (h *hashStore) peerContacts(ih string) []string {
 }
 
 // updateContact adds peerContact as a peer for the provided ih. Returns true if the contact was added, false otherwise (e.g: already present) .
-func (h *hashStore) addContact(ih string, peerContact string) bool {
+func (h *peerStore) addContact(ih string, peerContact string) bool {
 	var peers peerContactsSet
 	p, ok := h.infoHashPeers.Get(ih)
 	if ok {
@@ -81,11 +81,11 @@ func (h *hashStore) addContact(ih string, peerContact string) bool {
 	return false
 }
 
-func (h *hashStore) addLocalDownload(ih string) {
+func (h *peerStore) addLocalDownload(ih string) {
 	h.localActiveDownloads[ih] = true
 }
 
-func (h *hashStore) hasLocalDownload(ih string) bool {
+func (h *peerStore) hasLocalDownload(ih string) bool {
 	_, ok := h.localActiveDownloads[ih]
 	return ok
 }

@@ -1,4 +1,4 @@
-// Runs a node on UDP port 11221 that attempt to collect 100 peers for an 
+// Runs a node on UDP port 11221 that attempt to collect 100 peers for an
 // infohash, then keeps running as a passive DHT node.
 //
 // To collect 100 peers, it usually has to contact some 10k nodes. This process
