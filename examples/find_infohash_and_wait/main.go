@@ -11,7 +11,9 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"os"
 	"time"
 
 	l4g "code.google.com/p/log4go"
@@ -25,12 +27,30 @@ const (
 )
 
 func main() {
-	l4g.AddFilter("stdout", l4g.DEBUG, l4g.NewConsoleLogWriter())
-
-	d, err := dht.NewDHTNode(dhtPortUDP, 100, false)
+	flag.Parse()
+	// Change to l4g.DEBUG to see *lots* of debugging information.
+	l4g.AddFilter("stdout", l4g.WARNING, l4g.NewConsoleLogWriter())
+	if len(flag.Args()) != 1 {
+		fmt.Fprintf(os.Stderr, "Usage: %v <infohash>\n", os.Args[0])
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+	ih, err := dht.DecodeInfoHash(flag.Args()[0])
 	if err != nil {
-		fmt.Println(err)
-		return
+		l4g.Critical("DecodeInfoHash error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// This is a hint to the DHT of the minimum number of peers it will try to
+	// find for the given node. This is not a reliable limit. In the future this
+	// might be moved to "PeersRequest()", so the controlling client can have
+	// different targets at different moments or for different infohashes.
+	targetNumPeers := 5
+	d, err := dht.NewDHTNode(dhtPortUDP, targetNumPeers, false)
+	if err != nil {
+		l4g.Critical("NewDHTNode error: %v", err)
+		os.Exit(1)
+
 	}
 	go d.DoDHT()
 	go drainresults(d)
@@ -38,15 +58,22 @@ func main() {
 	// Give the DHT some time to "warm-up" its routing table.
 	time.Sleep(5 * time.Second)
 
-	d.PeersRequest("\xd1\xc5\x67\x6a\xe7\xac\x98\xe8\xb1\x9f\x63\x56\x59\x05\x10\x5e\x3c\x4c\x37\xa2", false)
+	d.PeersRequest(string(ih), false)
 
 	http.ListenAndServe(fmt.Sprintf(":%d", httpPortTCP), nil)
 }
 
-// drainresults loops, constantly reading any new peer information sent by the
-// DHT node and just ignoring them. We don't care about those :-P.
+// drainresults loops, printing the address of nodes it has found.
 func drainresults(n *dht.DHT) {
-	for {
-		<-n.PeersRequestResults
+	fmt.Println("=========================== DHT")
+	for r := range n.PeersRequestResults {
+		for ih, peers := range r {
+			l4g.Warn("Found peer(s) for infohash %x:", ih)
+			for _, x := range peers {
+				l4g.Warn("==========================> %v", dht.DecodePeerAddress(x))
+				l4g.Warn("Note that there are many bad nodes that reply to anything you ask, so don't get too excited.")
+				l4g.Warn("==========================")
+			}
+		}
 	}
 }

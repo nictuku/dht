@@ -65,6 +65,9 @@ func init() {
 		"Maximum packets per second to be processed. Beyond this limit they are silently dropped. Set to -1 to disable rate limiting.")
 
 	// TODO: Control the verbosity via flag.
+	// Setting during init has two purposes:
+	// - Gives the calling program the ability to override this filter inside their main().
+	// - Provides a sane default that isn't excessively verbose.
 	l4g.AddFilter("stdout", l4g.WARNING, l4g.NewConsoleLogWriter())
 }
 
@@ -90,7 +93,7 @@ type DHT struct {
 	store                  *DHTStore
 
 	// Public channels:
-	PeersRequestResults chan map[string][]string // key = infohash, v = slice of peers.
+	PeersRequestResults chan map[InfoHash][]string // key = infohash, v = slice of peers.
 }
 
 func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err error) {
@@ -98,7 +101,7 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err err
 		port:                 port,
 		routingTable:         newRoutingTable(),
 		peerStore:            newPeerStore(),
-		PeersRequestResults:  make(chan map[string][]string, 1),
+		PeersRequestResults:  make(chan map[InfoHash][]string, 1),
 		exploredNeighborhood: false,
 		// Buffer to avoid blocking on sends.
 		remoteNodeAcquaintance: make(chan string, 100),
@@ -236,7 +239,7 @@ func (d *DHT) DoDHT() {
 			}
 
 			if d.peerStore.count(peersRequest.ih) < d.numTargetPeers {
-				l4g.Warn("DHT: torrent client asking more peers for %x. Calling getPeers().", peersRequest.ih)
+				l4g.Info("DHT: torrent client asking more peers for %x. Calling getPeers().", peersRequest.ih)
 				d.getPeers(peersRequest.ih)
 			}
 
@@ -591,7 +594,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 		}
 		if len(peers) > 0 {
 			// Finally, new peers.
-			result := map[string][]string{query.ih: peers}
+			result := map[InfoHash][]string{InfoHash(query.ih): peers}
 			totalPeers.Add(int64(len(peers)))
 			l4g.Info("DHT: processGetPeerResults, totalPeers: %v", totalPeers.String())
 			d.PeersRequestResults <- result
@@ -700,7 +703,3 @@ var (
 	totalDroppedPackets          = expvar.NewInt("totalDroppedPackets")
 	totalRecv                    = expvar.NewInt("totalRecv")
 )
-
-func init() {
-	l4g.Global.AddFilter("stdout", l4g.WARNING, l4g.NewConsoleLogWriter())
-}
