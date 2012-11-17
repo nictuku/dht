@@ -22,8 +22,8 @@ type peerContactsSet struct {
 // different set of contacts, if possible.
 func (p *peerContactsSet) next() []string {
 	count := kNodes
-	if count > len(p.set) {
-		count = len(p.set)
+	if count > p.Size() {
+		count = p.Size()
 	}
 	x := make([]string, 0, count)
 	var next *ring.Ring
@@ -36,7 +36,7 @@ func (p *peerContactsSet) next() []string {
 }
 
 func (p *peerContactsSet) put(peerContact string) bool {
-	if len(p.set) > maxInfoHashPeers {
+	if p.Size() > maxInfoHashPeers {
 		return false
 	}
 	if ok := p.set[peerContact]; !ok {
@@ -97,7 +97,11 @@ func (h *peerStore) count(ih string) int {
 
 // peerContacts returns a random set of 8 peers for the ih InfoHash.
 func (h *peerStore) peerContacts(ih string) []string {
-	return h.get(ih).next()
+	peers := h.get(ih)
+	if peers == nil {
+		return nil
+	}
+	return peers.next()
 }
 
 // updateContact adds peerContact as a peer for the provided ih. Returns true
