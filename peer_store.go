@@ -2,6 +2,7 @@ package dht
 
 import (
 	"code.google.com/p/vitess/go/cache"
+	"container/ring"
 )
 
 const (
@@ -11,21 +12,61 @@ const (
 )
 
 // For the inner map, the key address in binary form. value=ignored.
-type peerContactsSet map[string]bool
+type peerContactsSet struct {
+	set map[string]bool
+	// Needed to ensure different peers are returned each time.
+	ring *ring.Ring
+}
 
-func (p peerContactsSet) Size() int {
-	return len(p)
+// next returns up to 8 peer contacts, if available. Further calls will return a
+// different set of contacts, if possible.
+func (p *peerContactsSet) next() []string {
+	count := kNodes
+	if count > len(p.set) {
+		count = len(p.set)
+	}
+	x := make([]string, 0, count)
+	var next *ring.Ring
+	for i := 0; i < count; i++ {
+		next = p.ring.Next()
+		x = append(x, next.Value.(string))
+		p.ring = next
+	}
+	return x
+}
+
+func (p *peerContactsSet) put(peerContact string) bool {
+	if len(p.set) > maxInfoHashPeers {
+		return false
+	}
+	if ok := p.set[peerContact]; !ok {
+		p.set[peerContact] = true
+
+		r := &ring.Ring{Value: peerContact}
+		if p.ring == nil {
+			p.ring = r
+		} else {
+			p.ring.Link(r)
+		}
+		return true
+	}
+	return false
+}
+
+func (p *peerContactsSet) Size() int {
+	return len(p.set)
 }
 
 func newPeerStore() *peerStore {
 	return &peerStore{
 		infoHashPeers:        cache.NewLRUCache(maxInfoHashes),
-		localActiveDownloads: make(peerContactsSet),
+		localActiveDownloads: make(map[string]bool),
 	}
 }
 
 type peerStore struct {
-	// cache of peers for infohashes. Each key is an infohash and the values are peerContactsSet.
+	// cache of peers for infohashes. Each key is an infohash and the
+	// values are peerContactsSet.
 	infoHashPeers *cache.LRUCache
 	// infoHashes for which we are peers.
 	localActiveDownloads map[string]bool
@@ -36,49 +77,44 @@ func (h *peerStore) size() int {
 	return int(length)
 }
 
-func (h *peerStore) get(ih string) peerContactsSet {
+func (h *peerStore) get(ih string) *peerContactsSet {
 	c, ok := h.infoHashPeers.Get(ih)
 	if !ok {
 		return nil
 	}
-	contacts := c.(peerContactsSet)
+	contacts := c.(*peerContactsSet)
 	return contacts
 }
 
 // count shows the number of know peers for the given infohash.
 func (h *peerStore) count(ih string) int {
-	return len(h.get(ih))
-}
-
-func (h *peerStore) peerContacts(ih string) []string {
-	c := make([]string, 0, kNodes)
-	for p, _ := range h.get(ih) {
-		c = append(c, p)
+	peers := h.get(ih)
+	if peers == nil {
+		return 0
 	}
-	return c
+	return peers.Size()
 }
 
-// updateContact adds peerContact as a peer for the provided ih. Returns true if the contact was added, false otherwise (e.g: already present) .
+// peerContacts returns a random set of 8 peers for the ih InfoHash.
+func (h *peerStore) peerContacts(ih string) []string {
+	return h.get(ih).next()
+}
+
+// updateContact adds peerContact as a peer for the provided ih. Returns true
+// if the contact was added, false otherwise (e.g: already present) .
 func (h *peerStore) addContact(ih string, peerContact string) bool {
-	var peers peerContactsSet
+	var peers *peerContactsSet
 	p, ok := h.infoHashPeers.Get(ih)
 	if ok {
-		peers = p.(peerContactsSet)
+		peers = p.(*peerContactsSet)
 	} else {
 		if h.size() > maxInfoHashes {
 			return false
 		}
-		peers = peerContactsSet{}
+		peers = &peerContactsSet{set: make(map[string]bool, maxInfoHashes)}
 		h.infoHashPeers.Set(ih, peers)
 	}
-	if len(peers) > maxInfoHashPeers {
-		return false
-	}
-	if p := peers[peerContact]; !p {
-		peers[peerContact] = true
-		return true
-	}
-	return false
+	return peers.put(peerContact)
 }
 
 func (h *peerStore) addLocalDownload(ih string) {
