@@ -2,6 +2,7 @@ package dht
 
 import (
 	"code.google.com/p/vitess/go/cache"
+	"math/rand"
 )
 
 const (
@@ -50,10 +51,30 @@ func (h *peerStore) count(ih string) int {
 	return len(h.get(ih))
 }
 
+// peerContacts returns a random set of 8 peers for the ih InfoHash.
 func (h *peerStore) peerContacts(ih string) []string {
 	c := make([]string, 0, kNodes)
-	for p, _ := range h.get(ih) {
+	peers := h.get(ih)
+
+	// peers is a map, but I need a randomized set of 8 nodes to return.
+	// Choose eight continguous ones starting from a random position.
+	// Pseudo-random and un-seeded is fine.
+	first := rand.Intn(len(peers) - kNodes)
+	i := -1
+	for p, _ := range peers {
+		i++
+		if i < first {
+			// ranging and skipping isn't very smart because I'll
+			// be doing some 1000 skips. But it was a consicous
+			// choice against using extra memory to store an extra
+			// slice of nodes. I'll see if it becomes a problem
+			// before improving it.
+			continue
+		}
 		c = append(c, p)
+		if len(c) >= kNodes {
+			break
+		}
 	}
 	return c
 }
