@@ -18,7 +18,7 @@ import (
 // Owned by the DHT engine.
 type remoteNode struct {
 	address *net.UDPAddr
-	// addressDotFormatted contains a binary representation of the node's host:port address. 
+	// addressDotFormatted contains a binary representation of the node's host:port address.
 	addressBinaryFormat string
 	id                  string
 	// lastQueryID should be incremented after consumed. Based on the

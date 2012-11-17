@@ -239,6 +239,7 @@ func (d *DHT) DoDHT() {
 			}
 
 		case p := <-socketChan:
+			totalRecv.Add(1)
 			if rateLimitEnabled {
 				if tokenBucket > 0 {
 					d.processPacket(p)
@@ -299,7 +300,6 @@ func (d *DHT) helloFromPeer(addr string) {
 }
 
 func (d *DHT) processPacket(p packetType) {
-	totalRecv.Add(1)
 	if !d.clientThrottle.CheckBlock(p.raddr.IP.String()) {
 		totalPacketsFromBlockedHosts.Add(1)
 		return
