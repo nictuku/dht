@@ -2,7 +2,9 @@ package dht
 
 import (
 	"bytes"
+	"encoding/hex"
 	"expvar"
+	"fmt"
 	"net"
 	"strconv"
 	"time"
@@ -181,6 +183,19 @@ func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena *ar
 
 func bogusId(id string) bool {
 	return len(id) != 20
+}
+
+type InfoHash string
+
+// DecodeInfoHash transforms a hex-encoded 20-characters string to a binary
+// infohash.
+func DecodeInfoHash(x string) (b InfoHash, err error) {
+	if len(x) != 20 {
+		return "", fmt.Errorf("DecodeInfoHash: expected InfoHash len=20, got %d", len(x))
+	}
+	var h []byte
+	h, err = hex.DecodeString(x)
+	return InfoHash(h), err
 }
 
 // DecodePeerAddress transforms the binary-encoded host:port address into a
