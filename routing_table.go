@@ -240,6 +240,19 @@ func (r *routingTable) addNewNeighbor(n *remoteNode, displaceBoundary bool) {
 	l4g.Trace("New neighbor added to neighborhood with proximity %d", r.proximity)
 }
 
+// pingSlowly pings the remote nodes in needPing, distributing the pings
+// throughout an interval of cleanupPeriod, to avoid network traffic bursts. It
+// doesn't really send the pings, but signals to the main goroutine that it
+// should ping the nodes, using the pingRequest channel.
+func pingSlowly(pingRequest chan *remoteNode, needPing []*remoteNode, cleanupPeriod time.Duration) {
+	duration := cleanupPeriod - (1 * time.Minute)
+	perPingWait := duration / time.Duration(len(needPing))
+	for _, r := range needPing {
+		pingRequest <- r
+		<-time.After(perPingWait)
+	}
+}
+
 var (
 	totalKilledNodes = expvar.NewInt("totalKilledNodes")
 	totalNodes       = expvar.NewInt("totalNodes")

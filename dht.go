@@ -82,15 +82,15 @@ type DHT struct {
 	conn           *net.UDPConn
 	Logger         Logger
 
-	exploredNeighborhood bool
-
-	// Public channels:
+	exploredNeighborhood   bool
 	remoteNodeAcquaintance chan string
 	peersRequest           chan peerReq
-	PeersRequestResults    chan map[string][]string // key = infohash, v = slice of peers.
+	pingRequest            chan *remoteNode
 	clientThrottle         *nettools.ClientThrottle
+	store                  *DHTStore
 
-	store *DHTStore
+	// Public channels:
+	PeersRequestResults chan map[string][]string // key = infohash, v = slice of peers.
 }
 
 func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err error) {
@@ -104,6 +104,8 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err err
 		remoteNodeAcquaintance: make(chan string, 100),
 		// Buffer to avoid deadlocks and blocking on sends.
 		peersRequest: make(chan peerReq, 100),
+
+		pingRequest: make(chan *remoteNode),
 
 		numTargetPeers: numTargetPeers,
 		clientThrottle: nettools.NewThrottler(),
@@ -259,16 +261,9 @@ func (d *DHT) DoDHT() {
 			}
 		case <-cleanupTicker:
 			needPing := d.routingTable.cleanup()
-			go func(needPing []*remoteNode) {
-				// Don't ping all hosts at the same time -
-				// spread them out.
-				duration := cleanupPeriod - (1 * time.Minute)
-				perPingWait := duration / time.Duration(len(needPing))
-				for _, r := range needPing {
-					d.pingNode(r)
-					<-time.After(perPingWait)
-				}
-			}(needPing)
+			go pingSlowly(d.pingRequest, needPing, cleanupPeriod)
+		case node := <-d.pingRequest:
+			d.pingNode(node)
 		case <-saveTicker:
 			tbl := d.routingTable.reachableNodes()
 			if len(tbl) > 5 {
