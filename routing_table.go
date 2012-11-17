@@ -1,7 +1,6 @@
 package dht
 
 import (
-	"crypto/rand"
 	"expvar"
 	"fmt"
 	"net"
@@ -125,22 +124,11 @@ func (r *routingTable) getOrCreateNode(id string, hostPort string) (node *remote
 	if existed {
 		return node, nil
 	}
-	n, err := rand.Read(make([]byte, 1))
+	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		return nil, err
 	}
-	udpaddr, err := net.ResolveUDPAddr("udp", addr)
-	if err != nil {
-		return nil, err
-	}
-	node = &remoteNode{
-		address:        udpaddr,
-		lastQueryID:    n,
-		id:             id,
-		reachable:      false,
-		pendingQueries: map[string]*queryType{},
-		pastQueries:    map[string]*queryType{},
-	}
+	node = newRemoteNode(udpAddr, id)
 	return node, r.insert(node)
 }
 

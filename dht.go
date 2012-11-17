@@ -559,7 +559,7 @@ func (d *DHT) replyFindNode(addr *net.UDPAddr, r responseType) {
 	neighbors := d.routingTable.lookup(node)
 	n := make([]string, 0, kNodes)
 	for _, r := range neighbors {
-		n = append(n, r.id+nettools.DottedPortToBinary(r.address.String()))
+		n = append(n, r.id+r.addressBinaryFormat)
 	}
 	l4g.Trace("replyFindNode: Nodes only. Giving %d", len(n))
 	reply.R["nodes"] = strings.Join(n, "")

@@ -2,6 +2,7 @@ package dht
 
 import (
 	"bytes"
+	"crypto/rand"
 	"expvar"
 	"net"
 	"strconv"
@@ -15,7 +16,9 @@ import (
 // Owned by the DHT engine.
 type remoteNode struct {
 	address *net.UDPAddr
-	id      string
+	// addressDotFormatted contains a binary representation of the node's host:port address. 
+	addressBinaryFormat string
+	id                  string
 	// lastQueryID should be incremented after consumed. Based on the
 	// protocol, it would be two letters, but I'm using 0-255, although
 	// treated as string.
@@ -25,6 +28,18 @@ type remoteNode struct {
 	reachable       bool
 	lastTime        time.Time
 	ActiveDownloads []string // List of infohashes we know this peer is downloading.
+}
+
+func newRemoteNode(addr *net.UDPAddr, id string) *remoteNode {
+	return &remoteNode{
+		address:             addr,
+		addressBinaryFormat: nettools.DottedPortToBinary(addr.String()),
+		lastQueryID:         newTransactionId(),
+		id:                  id,
+		reachable:           false,
+		pendingQueries:      map[string]*queryType{},
+		pastQueries:         map[string]*queryType{},
+	}
 }
 
 type queryType struct {
@@ -181,6 +196,14 @@ func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena *ar
 
 func bogusId(id string) bool {
 	return len(id) != 20
+}
+
+func newTransactionId() int {
+	n, err := rand.Read(make([]byte, 1))
+	if err != nil {
+		return time.Now().Second()
+	}
+	return n
 }
 
 // DecodePeerAddress transforms the binary-encoded host:port address into a
