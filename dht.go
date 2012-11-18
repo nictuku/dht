@@ -177,18 +177,9 @@ func (d *DHT) getPeers(infoHash InfoHash) {
 // Find a DHT node.
 func (d *DHT) findNode(id string) {
 	ih := InfoHash(id)
-	// Doesn't use lookupFiltered because we're interested in the closest
-	// results, always.
-	closest := d.routingTable.lookup(ih)
+	closest := d.routingTable.lookupFiltered(ih)
 	for _, r := range closest {
-		skip := false
-		for _, q := range r.pendingQueries {
-			if q.Type == "find_node" && q.ih == ih {
-				skip = true
-				break
-			}
-		}
-		if !skip {
+		if r != nil {
 			d.findNodeFrom(r, id)
 		}
 	}

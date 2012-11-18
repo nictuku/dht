@@ -90,7 +90,7 @@ func (r *remoteNode) newQuery(transType string) (transId string) {
 
 func (r *remoteNode) wasContactedRecently(ih InfoHash) bool {
 	for _, q := range r.pastQueries {
-		if q.Type == "get_peers" && q.ih == ih {
+		if q.ih == ih {
 			ago := time.Now().Sub(r.lastTime)
 			if ago < getPeersRetryPeriod {
 				return true
