@@ -66,7 +66,7 @@ func BenchmarkFindClosest(b *testing.B) {
 	}
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		f := node.routingTable.lookupFiltered(fmt.Sprintf("x%10v", i) + "xxxxxxxxx")
+		f := node.routingTable.lookupFiltered(InfoHash(fmt.Sprintf("x%10v", i) + "xxxxxxxxx"))
 		if len(f) != kNodes {
 			b.Fatalf("Missing results. Wanted %d, got %d", kNodes, len(f))
 		}
@@ -99,9 +99,10 @@ func TestNodeDelete(t *testing.T) {
 		tree.insert(r)
 	}
 	for i, r := range []string{"\x00", "\x01"} {
+		id := InfoHash(r)
 		t.Logf("Removing node: %x", r)
-		tree.cut(r, 0)
-		neighbors := tree.lookup(r)
+		tree.cut(id, 0)
+		neighbors := tree.lookup(id)
 		if len(neighbors) == 0 {
 			t.Errorf("Deleted too many nodes.")
 		}
@@ -126,14 +127,15 @@ func TestNodeDistance(t *testing.T) {
 		{"\x07", 8},
 	}
 	for _, r := range tests {
+		q := InfoHash(r.query)
 		distances := make([]string, 0, len(tests))
-		neighbors := tree.lookup(r.query)
+		neighbors := tree.lookup(q)
 		if len(neighbors) != r.want {
-			t.Errorf("id: %x, wanted len=%d, got len=%d", r.query, r.want, len(neighbors))
+			t.Errorf("id: %x, wanted len=%d, got len=%d", q, r.want, len(neighbors))
 			t.Errorf("Details: %#v", neighbors)
 		}
 		for _, x := range neighbors {
-			d := hashDistance(r.query, x.id)
+			d := hashDistance(q, InfoHash(x.id))
 			var b []string
 			for _, c := range d {
 				if c != 0 {

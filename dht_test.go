@@ -111,14 +111,14 @@ func TestDHTLarge(t *testing.T) {
 	// Test that we can find peers for a known torrent in a timely fashion.
 	//
 	// Torrent from: http://www.clearbits.net/torrents/244-time-management-for-anarchists-1
-	infoHash := "\xb4\x62\xc0\xa8\xbc\xef\x1c\xe5\xbb\x56\xb9\xfd\xb8\xcf\x37\xff\xd0\x2f\x5f\x59"
-	go node.PeersRequest(infoHash, true)
+	infoHash := InfoHash("\xb4\x62\xc0\xa8\xbc\xef\x1c\xe5\xbb\x56\xb9\xfd\xb8\xcf\x37\xff\xd0\x2f\x5f\x59")
+	go node.PeersRequest(string(infoHash), true)
 	timeout := make(chan bool, 1)
 	go func() {
 		time.Sleep(10 * time.Second)
 		timeout <- true
 	}()
-	var infoHashPeers map[string][]string
+	var infoHashPeers map[InfoHash][]string
 	select {
 	case infoHashPeers = <-node.PeersRequestResults:
 		t.Logf("Found %d peers.", len(infoHashPeers[infoHash]))

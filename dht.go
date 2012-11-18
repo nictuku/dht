@@ -167,7 +167,10 @@ func (d *DHT) AddNode(addr string) {
 func (d *DHT) getPeers(infoHash InfoHash) {
 	closest := d.routingTable.lookupFiltered(infoHash)
 	for _, r := range closest {
-		d.getPeersFrom(r, infoHash)
+		// *remoteNode is nil if it got filtered.
+		if r != nil {
+			d.getPeersFrom(r, infoHash)
+		}
 	}
 }
 
@@ -523,8 +526,11 @@ func (d *DHT) replyGetPeers(addr *net.UDPAddr, r responseType) {
 
 func (d *DHT) nodesForInfoHash(ih InfoHash) string {
 	n := make([]string, 0, kNodes)
-	for _, r := range d.routingTable.lookupFiltered(ih) {
-		n = append(n, r.id+nettools.DottedPortToBinary(r.address.String()))
+	for _, r := range d.routingTable.lookup(ih) {
+		// r is nil when the node was filtered.
+		if r != nil {
+			n = append(n, r.id+nettools.DottedPortToBinary(r.address.String()))
+		}
 	}
 	l4g.Trace("replyGetPeers: Nodes only. Giving %d", len(n))
 	return strings.Join(n, "")
@@ -661,13 +667,13 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 			if existed {
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, InfoHash(node.id))
-					return fmt.Sprintf("DHT: DUPE node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, addr, x)
+					return fmt.Sprintf("DHT: DUPE node reference, query %x: %x@%v from %x@%v. Distance: %x.", query.ih, id, address, node.id, addr, x)
 				})
 				totalDupes.Add(1)
 			} else {
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, InfoHash(node.id))
-					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, addr, x)
+					return fmt.Sprintf("DHT: Got new node reference, query %x: %x@%v from %x@%v. Distance: %x.", query.ih, id, address, node.id, addr, x)
 				})
 				if _, err := d.routingTable.getOrCreateNode(id, addr); err == nil {
 					// Using d.findNode() instead of d.findNodeFrom() ensures

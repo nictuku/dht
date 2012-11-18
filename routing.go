@@ -38,8 +38,6 @@ package dht
 
 import (
 	"time"
-
-	l4g "code.google.com/p/log4go"
 )
 
 type nTree struct {
@@ -148,7 +146,9 @@ func (n *nTree) traverse(id InfoHash, i int, ret []*remoteNode, filter bool) []*
 		return ret
 	}
 	if n.value != nil {
-		if !filter || n.filter(id) {
+		if filter && !n.isOK(id) {
+			return append(ret, nil)
+		} else {
 			return append(ret, n.value)
 		}
 	}
@@ -210,7 +210,7 @@ func (n *nTree) cut(id InfoHash, i int) (cutMe bool) {
 	return false
 }
 
-func (n *nTree) filter(ih InfoHash) bool {
+func (n *nTree) isOK(ih InfoHash) bool {
 	if n.value == nil || n.value.id == "" {
 		return false
 	}
@@ -221,29 +221,13 @@ func (n *nTree) filter(ih InfoHash) bool {
 		// debug.Println("DHT: This shouldn't happen because we should have stopped trying already. Might be a BUG.")
 		return false
 	}
-	for _, q := range r.pendingQueries {
-		if q == nil {
-			l4g.Error("nil pending query for ih %v: %+v", ih, q)
-			continue
-		}
-		if q.Type == "get_peers" && q.ih == ih {
-			return false
-		}
+
+	if r.wasContactedRecently(ih) {
+		return false
 	}
-	// Skip if we asked for this infoHash recently.
-	for _, q := range r.pastQueries {
-		if q.Type == "get_peers" && q.ih == ih {
-			ago := time.Now().Sub(r.lastTime)
-			if ago < getPeersRetryPeriod {
-				return false
-			} else {
-				// This is an act of desperation. Query
-				// them again.  Most likely this will
-				// only generate dupes, but it's worth
-				// a try.
-				// debug.Printf("Re-sending get_peers. Last time: %v (%v ago) %v", r.lastTime.String(), ago.Seconds(), ago > 10*time.Second)
-			}
-		}
+	if len(r.pendingQueries) > 0 {
+		// No retries.
+		return false
 	}
 	return true
 }

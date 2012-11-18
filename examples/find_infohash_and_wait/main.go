@@ -29,7 +29,7 @@ const (
 func main() {
 	flag.Parse()
 	// Change to l4g.DEBUG to see *lots* of debugging information.
-	l4g.AddFilter("stdout", l4g.WARNING, l4g.NewConsoleLogWriter())
+	l4g.AddFilter("stdout", l4g.DEBUG, l4g.NewConsoleLogWriter())
 	if len(flag.Args()) != 1 {
 		fmt.Fprintf(os.Stderr, "Usage: %v <infohash>\n", os.Args[0])
 		flag.PrintDefaults()
