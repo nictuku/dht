@@ -46,7 +46,7 @@ func newRemoteNode(addr *net.UDPAddr, id string) *remoteNode {
 
 type queryType struct {
 	Type    string
-	ih      string
+	ih      InfoHash
 	srcNode string
 }
 
@@ -97,11 +97,11 @@ type getPeersResponse struct {
 }
 
 type answerType struct {
-	Id       string "id"
-	Target   string "target"
-	InfoHash string "info_hash"
-	Port     int    "port"
-	Token    string "token"
+	Id       string   "id"
+	Target   string   "target"
+	InfoHash InfoHash "info_hash" // should probably be a string.
+	Port     int      "port"
+	Token    string   "token"
 }
 
 // Generic stuff we read from the wire, not knowing what it is. This is as generic as can be.

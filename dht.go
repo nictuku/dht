@@ -141,11 +141,11 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err err
 // Logger allows the DHT client to attach hooks for certain RPCs so it can log
 // interesting events any way it wants.
 type Logger interface {
-	GetPeers(*net.UDPAddr, string, string)
+	GetPeers(*net.UDPAddr, string, InfoHash)
 }
 
 type peerReq struct {
-	ih       string
+	ih       InfoHash
 	announce bool
 }
 
@@ -154,7 +154,7 @@ type peerReq struct {
 // downloading this infohash, which is normally the case - unless this DHT node
 // is just a router that doesn't downloads torrents.
 func (d *DHT) PeersRequest(ih string, announce bool) {
-	d.peersRequest <- peerReq{ih, announce}
+	d.peersRequest <- peerReq{InfoHash(ih), announce}
 }
 
 // AddNode informs the DHT of a new node it should add to its routing table.
@@ -164,22 +164,23 @@ func (d *DHT) AddNode(addr string) {
 }
 
 // Asks for more peers for a torrent.
-func (d *DHT) getPeers(infoHash string) {
+func (d *DHT) getPeers(infoHash InfoHash) {
 	closest := d.routingTable.lookupFiltered(infoHash)
 	for _, r := range closest {
 		d.getPeersFrom(r, infoHash)
 	}
 }
 
-// Asks for more peers for a torrent.
+// Find a DHT node.
 func (d *DHT) findNode(id string) {
+	ih := InfoHash(id)
 	// Doesn't use lookupFiltered because we're interested in the closest
 	// results, always.
-	closest := d.routingTable.lookup(id)
+	closest := d.routingTable.lookup(ih)
 	for _, r := range closest {
 		skip := false
 		for _, q := range r.pendingQueries {
-			if q.Type == "find_node" && q.ih == id {
+			if q.Type == "find_node" && q.ih == ih {
 				skip = true
 				break
 			}
@@ -417,7 +418,7 @@ func (d *DHT) pingNode(r *remoteNode) {
 	totalSentPing.Add(1)
 }
 
-func (d *DHT) getPeersFrom(r *remoteNode, ih string) {
+func (d *DHT) getPeersFrom(r *remoteNode, ih InfoHash) {
 	totalSentGetPeers.Add(1)
 	ty := "get_peers"
 	transId := r.newQuery(ty)
@@ -428,7 +429,7 @@ func (d *DHT) getPeersFrom(r *remoteNode, ih string) {
 	}
 	query := queryMessage{transId, "q", ty, queryArguments}
 	l4g.Trace(func() string {
-		x := hashDistance(r.id, ih)
+		x := hashDistance(InfoHash(r.id), ih)
 		return fmt.Sprintf("DHT sending get_peers. nodeID: %x , InfoHash: %x , distance: %x", r.id, ih, x)
 	})
 	sendMsg(d.conn, r.address, query)
@@ -438,14 +439,14 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 	totalSentFindNode.Add(1)
 	ty := "find_node"
 	transId := r.newQuery(ty)
-	r.pendingQueries[transId].ih = id
+	r.pendingQueries[transId].ih = InfoHash(id)
 	queryArguments := map[string]interface{}{
 		"id":     d.nodeId,
 		"target": id,
 	}
 	query := queryMessage{transId, "q", ty, queryArguments}
 	l4g.Trace(func() string {
-		x := hashDistance(r.id, id)
+		x := hashDistance(InfoHash(r.id), InfoHash(id))
 		return fmt.Sprintf("DHT sending find_node. nodeID: %x , target ID: %x , distance: %x", r.id, id, x)
 	})
 	sendMsg(d.conn, r.address, query)
@@ -454,7 +455,7 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 // announcePeer sends a message to the destination address to advertise that
 // our node is a peer for this infohash, using the provided token to
 // 'authenticate'.
-func (d *DHT) announcePeer(address *net.UDPAddr, ih string, token string) {
+func (d *DHT) announcePeer(address *net.UDPAddr, ih InfoHash, token string) {
 	r, err := d.routingTable.getOrCreateNode("", address.String())
 	if err != nil {
 		l4g.Trace("announcePeer:", err)
@@ -475,12 +476,13 @@ func (d *DHT) announcePeer(address *net.UDPAddr, ih string, token string) {
 
 func (d *DHT) replyAnnouncePeer(addr *net.UDPAddr, r responseType) {
 	l4g.Trace(func() string {
+		ih := InfoHash(r.A.InfoHash)
 		return fmt.Sprintf("DHT: announce_peer. Host %v, nodeID: %x, infoHash: %x, peerPort %d, distance to me %x",
-			addr, r.A.Id, r.A.InfoHash, r.A.Port, hashDistance(r.A.InfoHash, d.nodeId),
+			addr, r.A.Id, ih, r.A.Port, hashDistance(ih, InfoHash(d.nodeId)),
 		)
 	})
 	peerAddr := net.TCPAddr{IP: addr.IP, Port: r.A.Port}
-	d.peerStore.addContact(r.A.InfoHash, nettools.DottedPortToBinary(peerAddr.String()))
+	d.peerStore.addContact(InfoHash(r.A.InfoHash), nettools.DottedPortToBinary(peerAddr.String()))
 	// Always reply positively. jech says this is to avoid "back-tracking", not sure what that means.
 	reply := replyMessage{
 		T: r.T,
@@ -493,7 +495,7 @@ func (d *DHT) replyAnnouncePeer(addr *net.UDPAddr, r responseType) {
 func (d *DHT) replyGetPeers(addr *net.UDPAddr, r responseType) {
 	totalRecvGetPeers.Add(1)
 	l4g.Info(func() string {
-		return fmt.Sprintf("DHT get_peers. Host: %v , nodeID: %x , InfoHash: %x , distance to me: %x", addr, r.A.Id, r.A.InfoHash, hashDistance(r.A.InfoHash, d.nodeId))
+		return fmt.Sprintf("DHT get_peers. Host: %v , nodeID: %x , InfoHash: %x , distance to me: %x", addr, r.A.Id, InfoHash(r.A.InfoHash), hashDistance(r.A.InfoHash, InfoHash(d.nodeId)))
 	})
 
 	if d.Logger != nil {
@@ -519,7 +521,7 @@ func (d *DHT) replyGetPeers(addr *net.UDPAddr, r responseType) {
 	sendMsg(d.conn, addr, reply)
 }
 
-func (d *DHT) nodesForInfoHash(ih string) string {
+func (d *DHT) nodesForInfoHash(ih InfoHash) string {
 	n := make([]string, 0, kNodes)
 	for _, r := range d.routingTable.lookupFiltered(ih) {
 		n = append(n, r.id+nettools.DottedPortToBinary(r.address.String()))
@@ -528,7 +530,7 @@ func (d *DHT) nodesForInfoHash(ih string) string {
 	return strings.Join(n, "")
 }
 
-func (d *DHT) peersForInfoHash(ih string) []string {
+func (d *DHT) peersForInfoHash(ih InfoHash) []string {
 	peerContacts := d.peerStore.peerContacts(ih)
 	if len(peerContacts) > 0 {
 		l4g.Trace("replyGetPeers: Giving peers! %x was requested, and we knew %d peers!", ih, len(peerContacts))
@@ -539,11 +541,11 @@ func (d *DHT) peersForInfoHash(ih string) []string {
 func (d *DHT) replyFindNode(addr *net.UDPAddr, r responseType) {
 	totalRecvFindNode.Add(1)
 	l4g.Trace(func() string {
-		x := hashDistance(r.A.Target, d.nodeId)
+		x := hashDistance(InfoHash(r.A.Target), InfoHash(d.nodeId))
 		return fmt.Sprintf("DHT find_node. Host: %v , nodeId: %x , target ID: %x , distance to me: %x", addr, r.A.Id, r.A.Target, x)
 	})
 
-	node := r.A.Target
+	node := InfoHash(r.A.Target)
 	r0 := map[string]interface{}{"id": d.nodeId}
 	reply := replyMessage{
 		T: r.T,
@@ -594,7 +596,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 		}
 		if len(peers) > 0 {
 			// Finally, new peers.
-			result := map[InfoHash][]string{InfoHash(query.ih): peers}
+			result := map[InfoHash][]string{query.ih: peers}
 			totalPeers.Add(int64(len(peers)))
 			l4g.Info("DHT: processGetPeerResults, totalPeers: %v", totalPeers.String())
 			d.PeersRequestResults <- result
@@ -623,14 +625,14 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 			}
 			if existed {
 				l4g.Trace(func() string {
-					x := hashDistance(query.ih, node.id)
+					x := hashDistance(query.ih, InfoHash(node.id))
 					return fmt.Sprintf("DHT: DUPE node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, node.address.String(), x)
 				})
 				totalDupes.Add(1)
 			} else {
 				// And it is actually new. Interesting.
 				l4g.Trace(func() string {
-					x := hashDistance(query.ih, node.id)
+					x := hashDistance(query.ih, InfoHash(node.id))
 					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, node.address.String(), x)
 				})
 				if _, err := d.routingTable.getOrCreateNode(id, addr); err == nil && d.peerStore.count(query.ih) < d.numTargetPeers {
@@ -658,19 +660,19 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 			// happening even for router.bittorrent.com
 			if existed {
 				l4g.Trace(func() string {
-					x := hashDistance(query.ih, node.id)
+					x := hashDistance(query.ih, InfoHash(node.id))
 					return fmt.Sprintf("DHT: DUPE node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, addr, x)
 				})
 				totalDupes.Add(1)
 			} else {
 				l4g.Trace(func() string {
-					x := hashDistance(query.ih, node.id)
+					x := hashDistance(query.ih, InfoHash(node.id))
 					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, addr, x)
 				})
 				if _, err := d.routingTable.getOrCreateNode(id, addr); err == nil {
 					// Using d.findNode() instead of d.findNodeFrom() ensures
 					// that only the closest neighbors are looked at.
-					d.findNode(query.ih)
+					d.findNode(string(query.ih))
 				}
 			}
 		}

@@ -60,7 +60,7 @@ func (p *peerContactsSet) Size() int {
 func newPeerStore() *peerStore {
 	return &peerStore{
 		infoHashPeers:        cache.NewLRUCache(maxInfoHashes),
-		localActiveDownloads: make(map[string]bool),
+		localActiveDownloads: make(map[InfoHash]bool),
 	}
 }
 
@@ -69,7 +69,7 @@ type peerStore struct {
 	// values are peerContactsSet.
 	infoHashPeers *cache.LRUCache
 	// infoHashes for which we are peers.
-	localActiveDownloads map[string]bool
+	localActiveDownloads map[InfoHash]bool
 }
 
 func (h *peerStore) size() int {
@@ -77,8 +77,8 @@ func (h *peerStore) size() int {
 	return int(length)
 }
 
-func (h *peerStore) get(ih string) *peerContactsSet {
-	c, ok := h.infoHashPeers.Get(ih)
+func (h *peerStore) get(ih InfoHash) *peerContactsSet {
+	c, ok := h.infoHashPeers.Get(string(ih))
 	if !ok {
 		return nil
 	}
@@ -87,7 +87,7 @@ func (h *peerStore) get(ih string) *peerContactsSet {
 }
 
 // count shows the number of know peers for the given infohash.
-func (h *peerStore) count(ih string) int {
+func (h *peerStore) count(ih InfoHash) int {
 	peers := h.get(ih)
 	if peers == nil {
 		return 0
@@ -96,7 +96,7 @@ func (h *peerStore) count(ih string) int {
 }
 
 // peerContacts returns a random set of 8 peers for the ih InfoHash.
-func (h *peerStore) peerContacts(ih string) []string {
+func (h *peerStore) peerContacts(ih InfoHash) []string {
 	peers := h.get(ih)
 	if peers == nil {
 		return nil
@@ -106,9 +106,9 @@ func (h *peerStore) peerContacts(ih string) []string {
 
 // updateContact adds peerContact as a peer for the provided ih. Returns true
 // if the contact was added, false otherwise (e.g: already present) .
-func (h *peerStore) addContact(ih string, peerContact string) bool {
+func (h *peerStore) addContact(ih InfoHash, peerContact string) bool {
 	var peers *peerContactsSet
-	p, ok := h.infoHashPeers.Get(ih)
+	p, ok := h.infoHashPeers.Get(string(ih))
 	if ok {
 		peers = p.(*peerContactsSet)
 	} else {
@@ -116,16 +116,16 @@ func (h *peerStore) addContact(ih string, peerContact string) bool {
 			return false
 		}
 		peers = &peerContactsSet{set: make(map[string]bool, maxInfoHashes)}
-		h.infoHashPeers.Set(ih, peers)
+		h.infoHashPeers.Set(string(ih), peers)
 	}
 	return peers.put(peerContact)
 }
 
-func (h *peerStore) addLocalDownload(ih string) {
+func (h *peerStore) addLocalDownload(ih InfoHash) {
 	h.localActiveDownloads[ih] = true
 }
 
-func (h *peerStore) hasLocalDownload(ih string) bool {
+func (h *peerStore) hasLocalDownload(ih InfoHash) bool {
 	_, ok := h.localActiveDownloads[ih]
 	return ok
 }

@@ -127,7 +127,7 @@ func (n *nTree) put(newNode *remoteNode, i int) {
 	}
 }
 
-func (n *nTree) lookup(id string) []*remoteNode {
+func (n *nTree) lookup(id InfoHash) []*remoteNode {
 	ret := make([]*remoteNode, 0, kNodes)
 	if n == nil || id == "" {
 		return nil
@@ -135,7 +135,7 @@ func (n *nTree) lookup(id string) []*remoteNode {
 	return n.traverse(id, 0, ret, false)
 }
 
-func (n *nTree) lookupFiltered(id string) []*remoteNode {
+func (n *nTree) lookupFiltered(id InfoHash) []*remoteNode {
 	ret := make([]*remoteNode, 0, kNodes)
 	if n == nil || id == "" {
 		return nil
@@ -143,7 +143,7 @@ func (n *nTree) lookupFiltered(id string) []*remoteNode {
 	return n.traverse(id, 0, ret, true)
 }
 
-func (n *nTree) traverse(id string, i int, ret []*remoteNode, filter bool) []*remoteNode {
+func (n *nTree) traverse(id InfoHash, i int, ret []*remoteNode, filter bool) []*remoteNode {
 	if n == nil {
 		return ret
 	}
@@ -181,7 +181,7 @@ func (n *nTree) traverse(id string, i int, ret []*remoteNode, filter bool) []*re
 
 // cut goes down the tree and deletes the children nodes if all their leaves
 // became empty.
-func (n *nTree) cut(id string, i int) (cutMe bool) {
+func (n *nTree) cut(id InfoHash, i int) (cutMe bool) {
 	if n == nil {
 		return true
 	}
@@ -210,7 +210,7 @@ func (n *nTree) cut(id string, i int) (cutMe bool) {
 	return false
 }
 
-func (n *nTree) filter(ih string) bool {
+func (n *nTree) filter(ih InfoHash) bool {
 	if n.value == nil || n.value.id == "" {
 		return false
 	}
@@ -276,7 +276,7 @@ func commonBits(s1, s2 string) int {
 // Calculates the distance between two hashes. In DHT/Kademlia, "distance" is
 // the XOR of the torrent infohash and the peer node ID.  This is slower than
 // necessary. Should only be used for displaying friendly messages.
-func hashDistance(id1 string, id2 string) (distance string) {
+func hashDistance(id1 InfoHash, id2 InfoHash) (distance string) {
 	d := make([]byte, len(id1))
 	if len(id1) != len(id2) {
 		return ""

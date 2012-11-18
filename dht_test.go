@@ -33,7 +33,7 @@ func ExampleDHT() {
 	d.PeersRequest(string(infoHash), false)
 
 	timeout := time.After(30 * time.Second)
-	var infoHashPeers map[string][]string
+	var infoHashPeers map[InfoHash][]string
 	select {
 	case infoHashPeers = <-d.PeersRequestResults:
 		break

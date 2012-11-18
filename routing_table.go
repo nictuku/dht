@@ -134,7 +134,7 @@ func (r *routingTable) getOrCreateNode(id string, hostPort string) (node *remote
 
 func (r *routingTable) kill(n *remoteNode) {
 	delete(r.addresses, n.address.String())
-	r.nTree.cut(n.id, 0)
+	r.nTree.cut(InfoHash(n.id), 0)
 	totalKilledNodes.Add(1)
 
 	if n.id == r.boundaryNode.id {
@@ -146,7 +146,7 @@ func (r *routingTable) resetNeighborhoodBoundary() {
 	r.proximity = 0
 	// Try to find a distant one within the neighborhood and promote it as
 	// the most distant node in the neighborhood.
-	neighbors := r.lookup(r.nodeId)
+	neighbors := r.lookup(InfoHash(r.nodeId))
 	if len(neighbors) > 0 {
 		r.boundaryNode = neighbors[len(neighbors)-1]
 		r.proximity = commonBits(r.nodeId, r.boundaryNode.id)
