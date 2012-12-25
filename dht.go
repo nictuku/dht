@@ -475,6 +475,7 @@ func (d *DHT) replyAnnouncePeer(addr *net.UDPAddr, r responseType) {
 			addr, r.A.Id, ih, r.A.Port, hashDistance(ih, InfoHash(d.nodeId)),
 		)
 	})
+	// TODO: Check token.
 	peerAddr := net.TCPAddr{IP: addr.IP, Port: r.A.Port}
 	d.peerStore.addContact(InfoHash(r.A.InfoHash), nettools.DottedPortToBinary(peerAddr.String()))
 	// Always reply positively. jech says this is to avoid "back-tracking", not sure what that means.
@@ -489,7 +490,8 @@ func (d *DHT) replyAnnouncePeer(addr *net.UDPAddr, r responseType) {
 func (d *DHT) replyGetPeers(addr *net.UDPAddr, r responseType) {
 	totalRecvGetPeers.Add(1)
 	l4g.Info(func() string {
-		return fmt.Sprintf("DHT get_peers. Host: %v , nodeID: %x , InfoHash: %x , distance to me: %x", addr, r.A.Id, InfoHash(r.A.InfoHash), hashDistance(r.A.InfoHash, InfoHash(d.nodeId)))
+		return fmt.Sprintf("DHT get_peers. Host: %v , nodeID: %x , InfoHash: %x , distance to me: %x",
+			addr, r.A.Id, InfoHash(r.A.InfoHash), hashDistance(r.A.InfoHash, InfoHash(d.nodeId)))
 	})
 
 	if d.Logger != nil {
@@ -539,7 +541,8 @@ func (d *DHT) replyFindNode(addr *net.UDPAddr, r responseType) {
 	totalRecvFindNode.Add(1)
 	l4g.Trace(func() string {
 		x := hashDistance(InfoHash(r.A.Target), InfoHash(d.nodeId))
-		return fmt.Sprintf("DHT find_node. Host: %v , nodeId: %x , target ID: %x , distance to me: %x", addr, r.A.Id, r.A.Target, x)
+		return fmt.Sprintf("DHT find_node. Host: %v , nodeId: %x , target ID: %x , distance to me: %x",
+			addr, r.A.Id, r.A.Target, x)
 	})
 
 	node := InfoHash(r.A.Target)
@@ -623,16 +626,19 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 			if existed {
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, InfoHash(node.id))
-					return fmt.Sprintf("DHT: DUPE node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, node.address.String(), x)
+					return fmt.Sprintf("DHT: DUPE node reference: %x@%v from %x@%v. Distance: %x.",
+						id, address, node.id, node.address.String(), x)
 				})
 				totalDupes.Add(1)
 			} else {
 				// And it is actually new. Interesting.
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, InfoHash(node.id))
-					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.", id, address, node.id, node.address.String(), x)
+					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.",
+						id, address, node.id, node.address.String(), x)
 				})
-				if _, err := d.routingTable.getOrCreateNode(id, addr); err == nil && d.peerStore.count(query.ih) < d.numTargetPeers {
+				_, err := d.routingTable.getOrCreateNode(id, addr)
+				if err == nil && d.peerStore.count(query.ih) < d.numTargetPeers {
 					d.getPeers(query.ih)
 				}
 			}
@@ -658,13 +664,15 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 			if existed {
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, InfoHash(node.id))
-					return fmt.Sprintf("DHT: DUPE node reference, query %x: %x@%v from %x@%v. Distance: %x.", query.ih, id, address, node.id, addr, x)
+					return fmt.Sprintf("DHT: DUPE node reference, query %x: %x@%v from %x@%v. Distance: %x.",
+						query.ih, id, address, node.id, addr, x)
 				})
 				totalDupes.Add(1)
 			} else {
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, InfoHash(node.id))
-					return fmt.Sprintf("DHT: Got new node reference, query %x: %x@%v from %x@%v. Distance: %x.", query.ih, id, address, node.id, addr, x)
+					return fmt.Sprintf("DHT: Got new node reference, query %x: %x@%v from %x@%v. Distance: %x.",
+						query.ih, id, address, node.id, addr, x)
 				})
 				if _, err := d.routingTable.getOrCreateNode(id, addr); err == nil {
 					// Using d.findNode() instead of d.findNodeFrom() ensures
