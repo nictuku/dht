@@ -225,10 +225,6 @@ func (n *nTree) isOK(ih InfoHash) bool {
 	if r.wasContactedRecently(ih) {
 		return false
 	}
-	if len(r.pendingQueries) > 0 {
-		// No retries.
-		return false
-	}
 	return true
 }
 
