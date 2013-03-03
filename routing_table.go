@@ -245,6 +245,9 @@ func (r *routingTable) addNewNeighbor(n *remoteNode, displaceBoundary bool) {
 // doesn't really send the pings, but signals to the main goroutine that it
 // should ping the nodes, using the pingRequest channel.
 func pingSlowly(pingRequest chan *remoteNode, needPing []*remoteNode, cleanupPeriod time.Duration) {
+	if len(needPing) == 0 {
+		return
+	}
 	duration := cleanupPeriod - (1 * time.Minute)
 	perPingWait := duration / time.Duration(len(needPing))
 	for _, r := range needPing {
