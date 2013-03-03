@@ -191,7 +191,7 @@ func listen(listenPort int) (socket *net.UDPConn, err error) {
 }
 
 // Read from UDP socket, writes slice of byte into channel.
-func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena *arena) {
+func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena arena) {
 	for {
 		b := bytesArena.Pop()
 		n, addr, err := socket.ReadFromUDP(b)
