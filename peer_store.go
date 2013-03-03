@@ -115,7 +115,7 @@ func (h *peerStore) addContact(ih InfoHash, peerContact string) bool {
 		if h.size() > maxInfoHashes {
 			return false
 		}
-		peers = &peerContactsSet{set: make(map[string]bool, maxInfoHashes)}
+		peers = &peerContactsSet{set: make(map[string]bool)}
 		h.infoHashPeers.Set(string(ih), peers)
 	}
 	return peers.put(peerContact)
