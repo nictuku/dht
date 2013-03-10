@@ -48,7 +48,6 @@ var (
 	cleanupPeriod    time.Duration
 	savePeriod       time.Duration
 	rateLimit        int64
-	rateLimitEnabled = true
 )
 
 func init() {
@@ -210,7 +209,6 @@ func (d *DHT) DoDHT() {
 	tokenBucket := rateLimit
 
 	if rateLimit < 0 {
-		rateLimitEnabled = false
 		l4g.Warn("rate limiting disabled")
 	} else {
 		// Token bucket for limiting the number of packets per second.
@@ -240,7 +238,7 @@ func (d *DHT) DoDHT() {
 
 		case p := <-socketChan:
 			totalRecv.Add(1)
-			if rateLimitEnabled {
+			if rateLimit < 0 {
 				if tokenBucket > 0 {
 					d.processPacket(p)
 					tokenBucket -= 1
