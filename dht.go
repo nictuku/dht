@@ -522,7 +522,13 @@ func (d *DHT) nodesForInfoHash(ih InfoHash) string {
 	for _, r := range d.routingTable.lookup(ih) {
 		// r is nil when the node was filtered.
 		if r != nil {
-			n = append(n, r.id+nettools.DottedPortToBinary(r.address.String()))
+			binaryHost := r.id + nettools.DottedPortToBinary(r.address.String())
+			if binaryHost == "" {
+				l4g.Trace("killing node with bogus address %v", r.address.String())
+				d.routingTable.kill(r)
+			} else {
+				n = append(n, binaryHost)
+			}
 		}
 	}
 	l4g.Trace("replyGetPeers: Nodes only. Giving %d", len(n))

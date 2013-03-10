@@ -71,12 +71,25 @@ func (r *routingTable) reachableNodes() (tbl map[string][]byte) {
 
 }
 
+func isValidAddr(addr string) bool {
+	if addr == "" {
+		return false
+	}
+	if h, p, err := net.SplitHostPort(addr); h == "" || p == "" || err != nil {
+		return false
+	}
+	return true
+}
+
 // update the existing routingTable entry for this node, giving an error if the
 // node was not found.
 func (r *routingTable) update(node *remoteNode) error {
 	_, addr, existed, err := r.hostPortToNode(node.address.String())
 	if err != nil {
 		return err
+	}
+	if !isValidAddr(addr) {
+		return fmt.Errorf("routingTable.update received an invalid address %v", addr)
 	}
 	if !existed {
 		return fmt.Errorf("node missing from the routing table:", node.address.String())
@@ -98,6 +111,10 @@ func (r *routingTable) insert(node *remoteNode) error {
 	_, addr, existed, err := r.hostPortToNode(node.address.String())
 	if err != nil {
 		return err
+	}
+	if !isValidAddr(addr) {
+		return fmt.Errorf("routingTable.insert received an invalid address %v", addr)
+
 	}
 	if existed {
 		return nil // fmt.Errorf("node already existed in routing table: %v", node.address.String())
