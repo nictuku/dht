@@ -43,11 +43,11 @@ import (
 )
 
 var (
-	dhtRouter        string
-	maxNodes         int
-	cleanupPeriod    time.Duration
-	savePeriod       time.Duration
-	rateLimit        int64
+	dhtRouter     string
+	maxNodes      int
+	cleanupPeriod time.Duration
+	savePeriod    time.Duration
+	rateLimit     int64
 )
 
 func init() {
@@ -401,7 +401,7 @@ func (d *DHT) ping(address string) {
 }
 
 func (d *DHT) pingNode(r *remoteNode) {
-	l4g.Debug("DHT: ping => %+v\n", r.address)
+	l4g.Debug("DHT: ping => %+v", r.address)
 	t := r.newQuery("ping")
 
 	queryArguments := map[string]interface{}{"id": d.nodeId}
@@ -454,7 +454,7 @@ func (d *DHT) announcePeer(address *net.UDPAddr, ih InfoHash, token string) {
 		return
 	}
 	ty := "announce_peer"
-	l4g.Trace("DHT: announce_peer => %v %x %x\n", address, ih, token)
+	l4g.Trace("DHT: announce_peer => %v %x %x", address, ih, token)
 	transId := r.newQuery(ty)
 	queryArguments := map[string]interface{}{
 		"id":        d.nodeId,
@@ -571,7 +571,7 @@ func (d *DHT) replyFindNode(addr *net.UDPAddr, r responseType) {
 }
 
 func (d *DHT) replyPing(addr *net.UDPAddr, response responseType) {
-	l4g.Trace("DHT: reply ping => %v\n", addr)
+	l4g.Trace("DHT: reply ping => %v", addr)
 	reply := replyMessage{
 		T: response.T,
 		Y: "r",
