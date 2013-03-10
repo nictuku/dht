@@ -146,9 +146,7 @@ func (n *nTree) traverse(id InfoHash, i int, ret []*remoteNode, filter bool) []*
 		return ret
 	}
 	if n.value != nil {
-		if filter && !n.isOK(id) {
-			return append(ret, nil)
-		} else {
+		if !filter || n.isOK(id) {
 			return append(ret, n.value)
 		}
 	}
