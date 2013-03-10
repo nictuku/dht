@@ -23,5 +23,6 @@ func (a arena) Pop() (x []byte) {
 }
 
 func (a arena) Push(x []byte) {
+	x = x[:cap(x)]
 	a <- x
 }
