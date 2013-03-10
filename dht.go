@@ -213,7 +213,7 @@ func (d *DHT) DoDHT() {
 	} else {
 		// Token bucket for limiting the number of packets per second.
 		fillTokenBucket = time.Tick(time.Second / 10)
-		if rateLimit < 10 {
+		if rateLimit > 0 && rateLimit < 10 {
 			// Less than 10 leads to rounding problems.
 			rateLimit = 10
 		}
@@ -238,7 +238,7 @@ func (d *DHT) DoDHT() {
 
 		case p := <-socketChan:
 			totalRecv.Add(1)
-			if rateLimit < 0 {
+			if rateLimit > 0 {
 				if tokenBucket > 0 {
 					d.processPacket(p)
 					tokenBucket -= 1
