@@ -83,8 +83,10 @@ func parseNodesString(nodes string) (parsed map[string]string) {
 // It does not set any extra information to the transaction information, so the
 // caller must take care of that.
 func (r *remoteNode) newQuery(transType string) (transId string) {
+	l4g.Trace("newQuery for %x, lastID %v", r.id, r.lastQueryID)
 	r.lastQueryID = (r.lastQueryID + 1) % 256
 	transId = strconv.Itoa(r.lastQueryID)
+	l4g.Trace("... new id %v", r.lastQueryID)
 	r.pendingQueries[transId] = &queryType{Type: transType}
 	return
 }
@@ -93,10 +95,7 @@ func (r *remoteNode) newQuery(transType string) (transId string) {
 // one of the recent queries (not necessarily the last) was about the ih. If
 // the ih is different at each time, it will keep returning false.
 func (r *remoteNode) wasContactedRecently(ih InfoHash) bool {
-	if len(r.pendingQueries) == 0 {
-		return false
-	}
-	if len(r.pastQueries) == 0 {
+	if len(r.pendingQueries) == 0 && len(r.pastQueries) == 0 {
 		return false
 	}
 	if !r.lastResponseTime.IsZero() && time.Now().Sub(r.lastResponseTime) < searchRetryPeriod {

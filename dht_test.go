@@ -138,7 +138,8 @@ func TestDHTLarge(t *testing.T) {
 	}
 	t.Logf("=== Stats ===")
 	t.Logf("totalReachableNodes: %v", totalReachableNodes)
-	t.Logf("totalDupes: %v", totalDupes)
+	t.Logf("totalGetPeersDupes: %v", totalGetPeersDupes)
+	t.Logf("totalFindNodeDupes: %v", totalFindNodeDupes)
 	t.Logf("totalPeers: %v", totalPeers)
 	t.Logf("totalSentGetPeers: %v", totalSentGetPeers)
 }

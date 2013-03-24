@@ -1,5 +1,9 @@
 package dht
 
+import (
+	l4g "code.google.com/p/log4go"
+)
+
 // DHT routing using a binary tree and no buckets.
 //
 // Nodes have ids of 20-bytes. When looking up an infohash for itself or for a
@@ -220,7 +224,9 @@ func (n *nTree) isOK(ih InfoHash) bool {
 		return false
 	}
 
-	if r.wasContactedRecently(ih) {
+	recent := r.wasContactedRecently(ih)
+	l4g.Trace("wasContactedRecently for ih=%x in node %x@%v returned %v", ih, r.id, r.address, recent)
+	if recent {
 		return false
 	}
 	return true

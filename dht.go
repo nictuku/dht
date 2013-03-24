@@ -336,6 +336,7 @@ func (d *DHT) processPacket(p packetType) {
 				totalReachableNodes.Add(1)
 			}
 			node.lastResponseTime = time.Now()
+			node.pastQueries[r.T] = query
 			d.routingTable.neighborhoodUpkeep(node)
 
 			// If this is the first host added to the routing table, attempt a
@@ -359,7 +360,6 @@ func (d *DHT) processPacket(p packetType) {
 			default:
 				l4g.Info("DHT: Unknown query type: %v from %v", query.Type, addr)
 			}
-			node.pastQueries[r.T] = query
 			delete(node.pendingQueries, r.T)
 		} else {
 			l4g.Info("DHT: Unknown query id: %v", r.T)
@@ -433,14 +433,16 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 	totalSentFindNode.Add(1)
 	ty := "find_node"
 	transId := r.newQuery(ty)
-	r.pendingQueries[transId].ih = InfoHash(id)
+	ih := InfoHash(id)
+	l4g.Trace("findNodeFrom adding pendingQueries transId=%v ih=%x", transId, ih)
+	r.pendingQueries[transId].ih = ih
 	queryArguments := map[string]interface{}{
 		"id":     d.nodeId,
 		"target": id,
 	}
 	query := queryMessage{transId, "q", ty, queryArguments}
 	l4g.Trace(func() string {
-		x := hashDistance(InfoHash(r.id), InfoHash(id))
+		x := hashDistance(InfoHash(r.id), ih)
 		return fmt.Sprintf("DHT sending find_node. nodeID: %x@%v, target ID: %x , distance: %x", r.id, r.address, id, x)
 	})
 	sendMsg(d.conn, r.address, query)
@@ -633,15 +635,15 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, InfoHash(node.id))
 					return fmt.Sprintf("DHT: processGetPeerResults DUPE node reference: %x@%v from %x@%v. Distance: %x.",
-						id, address, node.id, node.address.String(), x)
+						id, address, node.id, node.address, x)
 				})
-				totalDupes.Add(1)
+				totalGetPeersDupes.Add(1)
 			} else {
 				// And it is actually new. Interesting.
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, InfoHash(node.id))
 					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.",
-						id, address, node.id, node.address.String(), x)
+						id, address, node.id, node.address, x)
 				})
 				_, err := d.routingTable.getOrCreateNode(id, addr)
 				if err == nil && d.peerStore.count(query.ih) < d.numTargetPeers {
@@ -665,20 +667,24 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 				l4g.Trace("DHT error parsing node from find_find response: %v", err)
 				continue
 			}
-			// SelfPromotions are more common for find_node. They are
-			// happening even for router.bittorrent.com
+			if addr == node.address.String() {
+				// SelfPromotions are more common for find_node. They are
+				// happening even for router.bittorrent.com
+				totalSelfPromotions.Add(1)
+				continue
+			}
 			if existed {
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, InfoHash(node.id))
-					return fmt.Sprintf("DHT: DUPE node reference, query %x: %x@%v from %x@%v. Distance: %x.",
-						query.ih, id, address, node.id, addr, x)
+					return fmt.Sprintf("DHT: processFindNodeResults DUPE node reference, query %x: %x@%v from %x@%v. Distance: %x.",
+						query.ih, id, address, node.id, node.address, x)
 				})
-				totalDupes.Add(1)
+				totalFindNodeDupes.Add(1)
 			} else {
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, InfoHash(node.id))
 					return fmt.Sprintf("DHT: Got new node reference, query %x: %x@%v from %x@%v. Distance: %x.",
-						query.ih, id, address, node.id, addr, x)
+						query.ih, id, address, node.id, node.address, x)
 				})
 				if _, err := d.routingTable.getOrCreateNode(id, addr); err == nil {
 					// Using d.findNode() instead of d.findNodeFrom() ensures
@@ -701,7 +707,8 @@ func randNodeId() []byte {
 var (
 	expNodeIds                   = expvar.NewMap("nodeIds")
 	totalReachableNodes          = expvar.NewInt("totalReachableNodes")
-	totalDupes                   = expvar.NewInt("totalDupes")
+	totalGetPeersDupes           = expvar.NewInt("totalGetPeersDupes")
+	totalFindNodeDupes           = expvar.NewInt("totalFindNodeDupes")
 	totalSelfPromotions          = expvar.NewInt("totalSelfPromotions")
 	totalPeers                   = expvar.NewInt("totalPeers")
 	totalSentPing                = expvar.NewInt("totalSentPing")
