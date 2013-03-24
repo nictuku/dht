@@ -24,7 +24,8 @@ type remoteNode struct {
 	// lastQueryID should be incremented after consumed. Based on the
 	// protocol, it would be two letters, but I'm using 0-255, although
 	// treated as string.
-	lastQueryID     int
+	lastQueryID int
+	// TODO: key by infohash instead?
 	pendingQueries  map[string]*queryType // key: transaction ID
 	pastQueries     map[string]*queryType // key: transaction ID
 	reachable       bool
@@ -88,11 +89,25 @@ func (r *remoteNode) newQuery(transType string) (transId string) {
 	return
 }
 
+// wasContactedRecently returns true if a node was contacted recently _and_
+// one of the recent queries (not necessarily the last) was about the ih. If
+// the ih is different at each time, it will keep returning false.
 func (r *remoteNode) wasContactedRecently(ih InfoHash) bool {
-	for _, q := range r.pastQueries {
-		if q.ih == ih {
-			ago := time.Now().Sub(r.lastTime)
-			if ago < getPeersRetryPeriod {
+	if len(r.pendingQueries) == 0 {
+		return false
+	}
+	if len(r.pastQueries) == 0 {
+		return false
+	}
+	ago := time.Now().Sub(r.lastTime)
+	if ago < getPeersRetryPeriod {
+		for _, q := range r.pendingQueries {
+			if q.ih == ih {
+				return true
+			}
+		}
+		for _, q := range r.pastQueries {
+			if q.ih == ih {
 				return true
 			}
 		}

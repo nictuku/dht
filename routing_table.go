@@ -177,12 +177,12 @@ func (r *routingTable) cleanup() (needPing []*remoteNode) {
 	// Needs some serious optimization.
 	for addr, n := range r.addresses {
 		if addr != n.address.String() {
-			l4g.Warn("cleanup: node address mismatches: %v != %v. Killing node", addr, n.address.String())
+			l4g.Warn("cleanup: node address mismatches: %v != %v. Deleting node", addr, n.address.String())
 			r.kill(n)
 			continue
 		}
 		if addr == "" {
-			l4g.Warn("cleanup: found empty address for node %x. Killing node", n.id)
+			l4g.Warn("cleanup: found empty address for node %x. Deleting node", n.id)
 			r.kill(n)
 			continue
 		}
@@ -192,7 +192,7 @@ func (r *routingTable) cleanup() (needPing []*remoteNode) {
 			}
 			// Tolerate 2 cleanup cycles.
 			if time.Since(n.lastTime) > cleanupPeriod*2+(time.Minute) {
-				l4g.Trace("DHT: Old node seen %v ago. Deleting.", time.Since(n.lastTime))
+				l4g.Trace("DHT: Old node seen %v ago. Deleting", time.Since(n.lastTime))
 				r.kill(n)
 				continue
 			}
