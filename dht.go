@@ -422,7 +422,7 @@ func (d *DHT) getPeersFrom(r *remoteNode, ih InfoHash) {
 	query := queryMessage{transId, "q", ty, queryArguments}
 	l4g.Trace(func() string {
 		x := hashDistance(InfoHash(r.id), ih)
-		return fmt.Sprintf("DHT sending get_peers. nodeID: %x , InfoHash: %x , distance: %x", r.id, ih, x)
+		return fmt.Sprintf("DHT sending get_peers. nodeID: %x@%v, InfoHash: %x , distance: %x", r.id, r.address, ih, x)
 	})
 	sendMsg(d.conn, r.address, query)
 }
@@ -439,7 +439,7 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 	query := queryMessage{transId, "q", ty, queryArguments}
 	l4g.Trace(func() string {
 		x := hashDistance(InfoHash(r.id), InfoHash(id))
-		return fmt.Sprintf("DHT sending find_node. nodeID: %x , target ID: %x , distance: %x", r.id, id, x)
+		return fmt.Sprintf("DHT sending find_node. nodeID: %x@%v, target ID: %x , distance: %x", r.id, r.address, id, x)
 	})
 	sendMsg(d.conn, r.address, query)
 }
