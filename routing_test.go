@@ -3,6 +3,7 @@ package dht
 import (
 	"crypto/rand"
 	"fmt"
+	"net"
 	"sort"
 	"strings"
 	"testing"
@@ -53,9 +54,14 @@ func BenchmarkFindClosest(b *testing.B) {
 		if _, err := rand.Read(rId); err != nil {
 			b.Fatal("Couldnt produce random numbers for FindClosest:", err)
 		}
+		// Take the first four bytes of rId and use them to build a random IPv4 address.
+		ip := net.IPv4(rId[0], rId[1], rId[2], rId[3])
+		port := i % 65536
+		address := net.UDPAddr{IP: ip, Port: port}
 		r := &remoteNode{
 			lastQueryID: 0,
 			id:          string(rId) + ffff,
+			address:     &address,
 		}
 		if len(r.id) != 20 {
 			b.Fatalf("remoteNode construction error, wrong len: want %d, got %d",
