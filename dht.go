@@ -630,7 +630,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 			if existed {
 				l4g.Trace(func() string {
 					x := hashDistance(query.ih, InfoHash(node.id))
-					return fmt.Sprintf("DHT: DUPE node reference: %x@%v from %x@%v. Distance: %x.",
+					return fmt.Sprintf("DHT: processGetPeerResults DUPE node reference: %x@%v from %x@%v. Distance: %x.",
 						id, address, node.id, node.address.String(), x)
 				})
 				totalDupes.Add(1)
