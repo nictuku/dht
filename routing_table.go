@@ -81,8 +81,8 @@ func isValidAddr(addr string) bool {
 	return true
 }
 
-// update the existing routingTable entry for this node, giving an error if the
-// node was not found.
+// update the existing routingTable entry for this node by setting its correct
+// infohash id. Gives an error if the node was not found.
 func (r *routingTable) update(node *remoteNode) error {
 	_, addr, existed, err := r.hostPortToNode(node.address.String())
 	if err != nil {
@@ -94,10 +94,10 @@ func (r *routingTable) update(node *remoteNode) error {
 	if !existed {
 		return fmt.Errorf("node missing from the routing table:", node.address.String())
 	}
-	r.addresses[addr] = node
 	if node.id != "" {
 		r.nTree.insert(node)
 		totalNodes.Add(1)
+		r.addresses[addr].id = node.id
 	}
 	return nil
 }
