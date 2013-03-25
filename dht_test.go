@@ -70,6 +70,7 @@ func startDHTNode(t *testing.T) *DHT {
 // Requires Internet access and can be flaky if the server or the internet is
 // slow.
 func TestDHTLarge(t *testing.T) {
+	defer stats(t)
 	node := startDHTNode(t)
 	realDHTNodes := []string{
 		"1.a.magnets.im",
@@ -137,6 +138,9 @@ func TestDHTLarge(t *testing.T) {
 			t.Logf("peer found: %v", nettools.BinaryToDottedPort(peer))
 		}
 	}
+}
+
+func stats(t *testing.T) {
 	t.Logf("=== Stats ===")
 	t.Logf("totalReachableNodes: %v", totalReachableNodes)
 	t.Logf("totalGetPeersDupes: %v", totalGetPeersDupes)

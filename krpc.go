@@ -98,7 +98,7 @@ func (r *remoteNode) wasContactedRecently(ih InfoHash) bool {
 	if len(r.pendingQueries) == 0 && len(r.pastQueries) == 0 {
 		return false
 	}
-	if !r.lastResponseTime.IsZero() && time.Now().Sub(r.lastResponseTime) < searchRetryPeriod {
+	if !r.lastResponseTime.IsZero() && time.Since(r.lastResponseTime) < searchRetryPeriod {
 		return false
 	}
 	for _, q := range r.pendingQueries {
