@@ -43,7 +43,7 @@ import (
 )
 
 var (
-	dhtRouter     string
+	dhtRouters    string
 	maxNodes      int
 	cleanupPeriod time.Duration
 	savePeriod    time.Duration
@@ -52,8 +52,8 @@ var (
 
 func init() {
 	// TODO: Run my own router.
-	flag.StringVar(&dhtRouter, "dhtRouter", "1.a.magnets.im:6881",
-		"IP:Port address of the DHT router used to bootstrap the DHT network.")
+	flag.StringVar(&dhtRouters, "routers", "1.a.magnets.im:6881,router.utorrent.com:6881",
+		"Comma separated IP:Port address of the DHT routeirs used to bootstrap the DHT network.")
 	flag.IntVar(&maxNodes, "maxNodes", 1000,
 		"Maximum number of nodes to store in the routing table, in memory.")
 	flag.DurationVar(&cleanupPeriod, "cleanupPeriod", 15*time.Minute,
@@ -196,7 +196,9 @@ func (d *DHT) DoDHT() {
 	go readFromSocket(socket, socketChan, bytesArena)
 
 	// Bootstrap the network.
-	d.ping(dhtRouter)
+	for _, s := range strings.Split(dhtRouters, ",") {
+		d.ping(s)
+	}
 
 	cleanupTicker := time.Tick(cleanupPeriod)
 
