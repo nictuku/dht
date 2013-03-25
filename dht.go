@@ -52,7 +52,7 @@ var (
 
 func init() {
 	// TODO: Run my own router.
-	flag.StringVar(&dhtRouter, "dhtRouter", "router.utorrent.com:6881",
+	flag.StringVar(&dhtRouter, "dhtRouter", "1.a.magnets.im:6881",
 		"IP:Port address of the DHT router used to bootstrap the DHT network.")
 	flag.IntVar(&maxNodes, "maxNodes", 1000,
 		"Maximum number of nodes to store in the routing table, in memory.")

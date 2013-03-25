@@ -73,6 +73,7 @@ func TestDHTLarge(t *testing.T) {
 	node := startDHTNode(t)
 	realDHTNodes := []string{
 		"1.a.magnets.im",
+		"router.utorrent.com",
 	}
 	for _, addr := range realDHTNodes {
 		ip, err := net.LookupHost(addr)
