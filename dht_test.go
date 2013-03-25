@@ -59,7 +59,7 @@ func ExampleDHT() {
 func startDHTNode(t *testing.T) *DHT {
 	port := rand.Intn(10000) + 40000
 	node, err := NewDHTNode(port, 100, false)
-	node.nodeId = "abcdefghij0123456789"
+	node.nodeId = string(randNodeId())
 	if err != nil {
 		t.Errorf("NewDHTNode(): %v", err)
 	}
