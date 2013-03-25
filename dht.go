@@ -333,7 +333,7 @@ func (d *DHT) processPacket(p packetType) {
 				node.reachable = true
 				totalReachableNodes.Add(1)
 			}
-			node.lastTime = time.Now()
+			node.lastResponseTime = time.Now()
 			d.routingTable.neighborhoodUpkeep(node)
 
 			// If this is the first host added to the routing table, attempt a

@@ -48,8 +48,8 @@ type nTree struct {
 const (
 	// Each query returns up to this number of nodes.
 	kNodes = 8
-	// Ask the same infoHash to a node after a long time.
-	getPeersRetryPeriod = 30 * time.Minute
+	// Search a node again after some time.
+	searchRetryPeriod = 15 * time.Second
 	// Consider a node stale if it has more than this number of oustanding
 	// queries from us.
 	maxNodePendingQueries = 5

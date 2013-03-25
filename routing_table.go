@@ -191,12 +191,12 @@ func (r *routingTable) cleanup() (needPing []*remoteNode) {
 				goto PING
 			}
 			// Tolerate 2 cleanup cycles.
-			if time.Since(n.lastTime) > cleanupPeriod*2+(time.Minute) {
-				l4g.Trace("DHT: Old node seen %v ago. Deleting", time.Since(n.lastTime))
+			if time.Since(n.lastResponseTime) > cleanupPeriod*2+(time.Minute) {
+				l4g.Trace("DHT: Old node seen %v ago. Deleting", time.Since(n.lastResponseTime))
 				r.kill(n)
 				continue
 			}
-			if time.Since(n.lastTime).Nanoseconds() < cleanupPeriod.Nanoseconds()/2 {
+			if time.Since(n.lastResponseTime).Nanoseconds() < cleanupPeriod.Nanoseconds()/2 {
 				// Seen recently. Don't need to ping.
 				continue
 			}

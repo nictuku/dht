@@ -26,11 +26,11 @@ type remoteNode struct {
 	// treated as string.
 	lastQueryID int
 	// TODO: key by infohash instead?
-	pendingQueries  map[string]*queryType // key: transaction ID
-	pastQueries     map[string]*queryType // key: transaction ID
-	reachable       bool
-	lastTime        time.Time
-	ActiveDownloads []string // List of infohashes we know this peer is downloading.
+	pendingQueries   map[string]*queryType // key: transaction ID
+	pastQueries      map[string]*queryType // key: transaction ID
+	reachable        bool
+	lastResponseTime time.Time
+	ActiveDownloads  []string // List of infohashes we know this peer is downloading.
 }
 
 func newRemoteNode(addr *net.UDPAddr, id string) *remoteNode {
@@ -99,17 +99,17 @@ func (r *remoteNode) wasContactedRecently(ih InfoHash) bool {
 	if len(r.pastQueries) == 0 {
 		return false
 	}
-	ago := time.Now().Sub(r.lastTime)
-	if ago < getPeersRetryPeriod {
-		for _, q := range r.pendingQueries {
-			if q.ih == ih {
-				return true
-			}
+	if !r.lastResponseTime.IsZero() && time.Now().Sub(r.lastResponseTime) < searchRetryPeriod {
+		return false
+	}
+	for _, q := range r.pendingQueries {
+		if q.ih == ih {
+			return true
 		}
-		for _, q := range r.pastQueries {
-			if q.ih == ih {
-				return true
-			}
+	}
+	for _, q := range r.pastQueries {
+		if q.ih == ih {
+			return true
 		}
 	}
 	return false
