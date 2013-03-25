@@ -221,6 +221,7 @@ func (d *DHT) DoDHT() {
 	l4g.Info("DHT: Starting DHT node %x.", d.nodeId)
 
 	for {
+		start := time.Now()
 		select {
 		case addr := <-d.remoteNodeAcquaintance:
 			d.helloFromPeer(addr)
@@ -267,6 +268,7 @@ func (d *DHT) DoDHT() {
 				saveStore(*d.store)
 			}
 		}
+		l4g.Trace("DHT loop took %v", time.Since(start))
 	}
 }
 
