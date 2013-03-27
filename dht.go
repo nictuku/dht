@@ -70,6 +70,11 @@ func init() {
 	l4g.AddFilter("stdout", l4g.WARNING, l4g.NewConsoleLogWriter())
 }
 
+const (
+	// Try to ensure that at least these many nodes are in the routing table.
+	minNodes = 16
+)
+
 // DHT should be created by NewDHTNode(). It provides DHT features to a
 // torrent client, such as finding new peers for torrent downloads without
 // requiring a tracker.
@@ -81,6 +86,8 @@ type DHT struct {
 	peerStore    *peerStore
 
 	numTargetPeers int
+	numReachableNodes int
+
 	conn           *net.UDPConn
 	Logger         Logger
 
@@ -274,6 +281,10 @@ func (d *DHT) DoDHT() {
 	}
 }
 
+func (d *DHT) needMoreNodes() bool {
+	return d.numReachableNodes < minNodes
+}
+
 func (d *DHT) helloFromPeer(addr string) {
 	// We've got a new node id. We need to:
 	// - see if we know it already, skip accordingly.
@@ -335,6 +346,7 @@ func (d *DHT) processPacket(p packetType) {
 		if query, ok := node.pendingQueries[r.T]; ok {
 			if !node.reachable {
 				node.reachable = true
+				d.numReachableNodes += 1
 				totalReachableNodes.Add(1)
 			}
 			node.lastResponseTime = time.Now()
@@ -342,8 +354,8 @@ func (d *DHT) processPacket(p packetType) {
 			d.routingTable.neighborhoodUpkeep(node)
 
 			// If this is the first host added to the routing table, attempt a
-			// recursive lookup of our own address, to build our neighborhood.
-			if !d.exploredNeighborhood {
+			// recursive lookup of our own address, to build our neighborhood ASAP.
+			if d.needMoreNodes() {
 				d.findNode(d.nodeId)
 			}
 			d.exploredNeighborhood = true
@@ -688,9 +700,11 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 					return fmt.Sprintf("DHT: Got new node reference, query %x: %x@%v from %x@%v. Distance: %x.",
 						query.ih, id, address, node.id, node.address, x)
 				})
-				if _, err := d.routingTable.getOrCreateNode(id, addr); err == nil {
-					// Using d.findNode() instead of d.findNodeFrom() ensures
-					// that only the closest neighbors are looked at.
+				// Includes the node in the routing table and ignores errors.
+				//
+				// Only continue the search if we really have to.
+				_, err := d.routingTable.getOrCreateNode(id, addr)
+				if err == nil && d.needMoreNodes() {
 					d.findNode(string(query.ih))
 				}
 			}
