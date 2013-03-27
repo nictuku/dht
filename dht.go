@@ -85,11 +85,11 @@ type DHT struct {
 	routingTable *routingTable
 	peerStore    *peerStore
 
-	numTargetPeers int
+	numTargetPeers    int
 	numReachableNodes int
 
-	conn           *net.UDPConn
-	Logger         Logger
+	conn   *net.UDPConn
+	Logger Logger
 
 	exploredNeighborhood   bool
 	remoteNodeAcquaintance chan string
@@ -661,7 +661,16 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 				})
 				_, err := d.routingTable.getOrCreateNode(id, addr)
 				if err == nil && d.peerStore.count(query.ih) < d.numTargetPeers {
-					d.getPeers(query.ih)
+					// Re-add this request to the queue. This would in theory
+					// batch similar requests, because new nodes are already
+					// available in the routing table and will be used at the
+					// next opportunity - before this particular channel send is
+					// processed. As soon we reach target number of peers these
+					// channel sends become noops.
+					// TODO: improve this. It's not really doing any batching
+					// while the server has free cycles and is quickly draining
+					// this channel.
+					d.peersRequest <- peerReq{query.ih, false}
 				}
 			}
 		}
