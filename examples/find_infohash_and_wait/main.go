@@ -1,13 +1,16 @@
-// Runs a node on UDP port 11221 that attempt to collect 100 peers for an
+// Runs a node on UDP port 11221 that attempts to collect 100 peers for an
 // infohash, then keeps running as a passive DHT node.
+//
+// IMPORTANT: if the UDP port is not reachable from the public internet, you
+// may see very few results.
 //
 // To collect 100 peers, it usually has to contact some 10k nodes. This process
 // is not instant and should take a minute or two, depending on your network
 // connection.
 //
-// NOTE: The node has full debugging level enabled so you'll see a lot of output
-// on the screen. It also runs a web server that can be used to collect
-// debugging stats from http://localhost:8080/debug/vars.
+//
+// There is a builtin web server that can be used to collect debugging stats
+// from http://localhost:8080/debug/vars.
 package main
 
 import (
