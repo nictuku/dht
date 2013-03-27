@@ -10,7 +10,7 @@
 //
 //
 // There is a builtin web server that can be used to collect debugging stats
-// from http://localhost:8080/debug/vars.
+// from http://localhost:8711/debug/vars.
 package main
 
 import (
@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	httpPortTCP = 8080
+	httpPortTCP = 8711
 	dhtPortUDP  = 11221
 )
 
