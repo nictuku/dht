@@ -146,6 +146,7 @@ func stats(t *testing.T) {
 	t.Logf("totalGetPeersDupes: %v", totalGetPeersDupes)
 	t.Logf("totalFindNodeDupes: %v", totalFindNodeDupes)
 	t.Logf("totalPeers: %v", totalPeers)
+	t.Logf("totalSentFindNode: %v", totalSentFindNode)
 	t.Logf("totalSentGetPeers: %v", totalSentGetPeers)
 }
 
