@@ -31,7 +31,8 @@ func main() {
 	// Change to l4g.DEBUG to see *lots* of debugging information.
 	l4g.AddFilter("stdout", l4g.WARNING, l4g.NewConsoleLogWriter())
 	if len(flag.Args()) != 1 {
-		fmt.Fprintf(os.Stderr, "Usage: %v <infohash>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %v <infohash>\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Example infohash: d1c5676ae7ac98e8b19f63565905105e3c4c37a2\n")
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
@@ -52,27 +53,29 @@ func main() {
 		os.Exit(1)
 
 	}
+	// For debugging.
+	go http.ListenAndServe(fmt.Sprintf(":%d", httpPortTCP), nil)
+
 	go d.DoDHT()
 	go drainresults(d)
 
-	// Give the DHT some time to "warm-up" its routing table.
-	time.Sleep(5 * time.Second)
+	for {
+		// Give the DHT some time to "warm-up" its routing table.
+		time.Sleep(5 * time.Second)
 
-	d.PeersRequest(string(ih), false)
-
-	http.ListenAndServe(fmt.Sprintf(":%d", httpPortTCP), nil)
+		d.PeersRequest(string(ih), false)
+	}
 }
 
 // drainresults loops, printing the address of nodes it has found.
 func drainresults(n *dht.DHT) {
 	fmt.Println("=========================== DHT")
+	l4g.Warn("Note that there are many bad nodes that reply to anything you ask.")
+	l4g.Warn("Peers found:")
 	for r := range n.PeersRequestResults {
-		for ih, peers := range r {
-			l4g.Warn("Found peer(s) for infohash %x:", ih)
+		for _, peers := range r {
 			for _, x := range peers {
-				l4g.Warn("==========================> %v", dht.DecodePeerAddress(x))
-				l4g.Warn("Note that there are many bad nodes that reply to anything you ask, so don't get too excited.")
-				l4g.Warn("==========================")
+				l4g.Warn("%v", dht.DecodePeerAddress(x))
 			}
 		}
 	}
