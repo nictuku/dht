@@ -230,7 +230,6 @@ func (d *DHT) DoDHT() {
 	l4g.Info("DHT: Starting DHT node %x.", d.nodeId)
 
 	for {
-		start := time.Now()
 		select {
 		case addr := <-d.remoteNodeAcquaintance:
 			d.helloFromPeer(addr)
@@ -277,7 +276,6 @@ func (d *DHT) DoDHT() {
 				saveStore(*d.store)
 			}
 		}
-		l4g.Trace("DHT loop took %v", time.Since(start))
 	}
 }
 
@@ -667,6 +665,14 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 					// next opportunity - before this particular channel send is
 					// processed. As soon we reach target number of peers these
 					// channel sends become noops.
+					//
+					// Setting the announce parameter to false because it's not
+					// needed here: if this node is downloading that particular
+					// infohash, that has already been recorded with
+					// peerStore.addLocalDownload(). The announcement itself is
+					// sent not when get_peers is sent, but when processing the
+					// reply to get_peers.
+					//
 					// TODO: improve this. It's not really doing any batching
 					// while the server has free cycles and is quickly draining
 					// this channel.
