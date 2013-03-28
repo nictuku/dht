@@ -51,11 +51,10 @@ var (
 )
 
 func init() {
-	// TODO: Run my own router.
 	flag.StringVar(&dhtRouters, "routers", "1.a.magnets.im:6881,router.utorrent.com:6881",
 		"Comma separated IP:Port address of the DHT routeirs used to bootstrap the DHT network.")
-	flag.IntVar(&maxNodes, "maxNodes", 1000,
-		"Maximum number of nodes to store in the routing table, in memory.")
+	flag.IntVar(&maxNodes, "maxNodes", 500,
+		"Maximum number of nodes to store in the routing table, in memory. This is the primary configuration for how noisy or aggressive this node should be. When the node starts, it will try to reach maxNodes/2 as quick as possible, to form a healthy routing table.")
 	flag.DurationVar(&cleanupPeriod, "cleanupPeriod", 15*time.Minute,
 		"How often to ping nodes in the network to see if they are reachable.")
 	flag.DurationVar(&savePeriod, "savePeriod", 5*time.Minute,
@@ -280,7 +279,7 @@ func (d *DHT) DoDHT() {
 }
 
 func (d *DHT) needMoreNodes() bool {
-	return d.numReachableNodes < minNodes
+	return d.numReachableNodes < minNodes || d.numReachableNodes*2 < maxNodes
 }
 
 func (d *DHT) helloFromPeer(addr string) {
