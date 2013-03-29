@@ -71,6 +71,10 @@ func (r *routingTable) reachableNodes() (tbl map[string][]byte) {
 
 }
 
+func (r *routingTable) numNodes() int {
+	return len(r.addresses)
+}
+
 func isValidAddr(addr string) bool {
 	if addr == "" {
 		return false

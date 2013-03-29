@@ -84,8 +84,7 @@ type DHT struct {
 	routingTable *routingTable
 	peerStore    *peerStore
 
-	numTargetPeers    int
-	numReachableNodes int
+	numTargetPeers int
 
 	conn   *net.UDPConn
 	Logger Logger
@@ -279,7 +278,8 @@ func (d *DHT) DoDHT() {
 }
 
 func (d *DHT) needMoreNodes() bool {
-	return d.numReachableNodes < minNodes || d.numReachableNodes*2 < maxNodes
+	n := d.routingTable.numNodes()
+	return n < minNodes || n*2 < maxNodes
 }
 
 func (d *DHT) helloFromPeer(addr string) {
@@ -343,7 +343,6 @@ func (d *DHT) processPacket(p packetType) {
 		if query, ok := node.pendingQueries[r.T]; ok {
 			if !node.reachable {
 				node.reachable = true
-				d.numReachableNodes += 1
 				totalReachableNodes.Add(1)
 			}
 			node.lastResponseTime = time.Now()
@@ -718,6 +717,10 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 				//
 				// Only continue the search if we really have to.
 				_, err := d.routingTable.getOrCreateNode(id, addr)
+
+				// TODO: Knowing more nodes gives a more diverse routing table and
+				// better get_peer search results. Consider always replacing dubious
+				// nodes (unreachable) with new ones that we hear about.
 				if err == nil && d.needMoreNodes() {
 					d.findNode(string(query.ih))
 				}
