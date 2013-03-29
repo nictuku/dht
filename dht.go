@@ -91,7 +91,8 @@ type DHT struct {
 
 	exploredNeighborhood   bool
 	remoteNodeAcquaintance chan string
-	peersRequest           chan peerReq
+	peersRequest           chan ihReq
+	nodesRequest           chan ihReq
 	pingRequest            chan *remoteNode
 	clientThrottle         *nettools.ClientThrottle
 	store                  *DHTStore
@@ -110,7 +111,8 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err err
 		// Buffer to avoid blocking on sends.
 		remoteNodeAcquaintance: make(chan string, 100),
 		// Buffer to avoid deadlocks and blocking on sends.
-		peersRequest: make(chan peerReq, 100),
+		peersRequest: make(chan ihReq, 100),
+		nodesRequest: make(chan ihReq, 100),
 
 		pingRequest: make(chan *remoteNode),
 
@@ -148,7 +150,7 @@ type Logger interface {
 	GetPeers(*net.UDPAddr, string, InfoHash)
 }
 
-type peerReq struct {
+type ihReq struct {
 	ih       InfoHash
 	announce bool
 }
@@ -158,7 +160,8 @@ type peerReq struct {
 // downloading this infohash, which is normally the case - unless this DHT node
 // is just a router that doesn't downloads torrents.
 func (d *DHT) PeersRequest(ih string, announce bool) {
-	d.peersRequest <- peerReq{InfoHash(ih), announce}
+	d.peersRequest <- ihReq{InfoHash(ih), announce}
+	l4g.Info("DHT: torrent client asking more peers for %x.", ih)
 }
 
 // AddNode informs the DHT of a new node it should add to its routing table.
@@ -231,16 +234,48 @@ func (d *DHT) DoDHT() {
 		select {
 		case addr := <-d.remoteNodeAcquaintance:
 			d.helloFromPeer(addr)
-		case peersRequest := <-d.peersRequest:
-			// torrent server is asking for more peers for a particular infoHash.  Ask the closest nodes for
-			// directions. The goroutine will write into the PeersNeededResults channel.
-			if peersRequest.announce {
-				d.peerStore.addLocalDownload(peersRequest.ih)
+		case req := <-d.peersRequest:
+			// torrent server is asking for more peers for infoHash.  Ask the closest
+			// nodes for directions. The goroutine will write into the
+			// PeersNeededResults channel.
+
+			// Drain all requests sitting in the channel and de-dupe them.
+			m := map[InfoHash]bool{req.ih: req.announce}
+		P:
+			for {
+				select {
+				case req = <-d.peersRequest:
+					m[req.ih] = req.announce
+				default:
+					// Channel drained.
+					break P
+				}
+			}
+			// Process each unique infohash for which there were requests.
+			for ih, announce := range m {
+				if announce {
+					d.peerStore.addLocalDownload(ih)
+				}
+
+				if d.peerStore.count(ih) < d.numTargetPeers {
+					d.getPeers(ih)
+				}
 			}
 
-			if d.peerStore.count(peersRequest.ih) < d.numTargetPeers {
-				l4g.Info("DHT: torrent client asking more peers for %x. Calling getPeers().", peersRequest.ih)
-				d.getPeers(peersRequest.ih)
+		case req := <-d.nodesRequest:
+			m := map[InfoHash]bool{req.ih: true}
+		L:
+			for {
+				select {
+				case req = <-d.nodesRequest:
+					m[req.ih] = true
+				default:
+					// Channel drained.
+					break L
+				}
+			}
+			for ih, _ := range m {
+				d.findNode(string(ih))
 			}
 
 		case p := <-socketChan:
@@ -671,10 +706,14 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 					// sent not when get_peers is sent, but when processing the
 					// reply to get_peers.
 					//
-					// TODO: improve this. It's not really doing any batching
-					// while the server has free cycles and is quickly draining
-					// this channel.
-					d.peersRequest <- peerReq{query.ih, false}
+					select {
+					case d.peersRequest <- ihReq{query.ih, false}:
+					default:
+						// The channel is full, so drop this item. The node
+						// was added to the routing table already, so it
+						// will be used next time getPeers() is called -
+						// assuming it's close enough to the ih.
+					}
 				}
 			}
 		}
@@ -718,11 +757,15 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 				// Only continue the search if we really have to.
 				_, err := d.routingTable.getOrCreateNode(id, addr)
 
-				// TODO: Knowing more nodes gives a more diverse routing table and
-				// better get_peer search results. Consider always replacing dubious
-				// nodes (unreachable) with new ones that we hear about.
 				if err == nil && d.needMoreNodes() {
-					d.findNode(string(query.ih))
+					select {
+					case d.nodesRequest <- ihReq{query.ih, false}:
+					default:
+						// Too many find_node commands queued up. Dropping
+						// this. The node has already been added to the
+						// routing table so we're not losing any
+						// information.
+					}
 				}
 			}
 		}
