@@ -164,6 +164,13 @@ func (d *DHT) PeersRequest(ih string, announce bool) {
 	l4g.Info("DHT: torrent client asking more peers for %x.", ih)
 }
 
+// Port returns the port number assigned to the DHT. This is useful when
+// when initialising the DHT with port 0, i.e. automatic port assignment,
+// in order to retrieve the actual port number used.
+func (d *DHT) Port() int {
+	return d.port;
+}
+
 // AddNode informs the DHT of a new node it should add to its routing table.
 // addr is a string containing the target node's "host:port" UDP address.
 func (d *DHT) AddNode(addr string) {
@@ -200,6 +207,11 @@ func (d *DHT) DoDHT() {
 		return
 	}
 	d.conn = socket
+
+	// Update the stored port number in case it was set 0, meaning it was
+	// set automatically by the system
+	d.port = socket.LocalAddr().(*net.UDPAddr).Port
+
 	bytesArena := newArena(maxUDPPacketSize, 500)
 	go readFromSocket(socket, socketChan, bytesArena)
 
@@ -228,7 +240,7 @@ func (d *DHT) DoDHT() {
 			rateLimit = 10
 		}
 	}
-	l4g.Info("DHT: Starting DHT node %x.", d.nodeId)
+	l4g.Info("DHT: Starting DHT node %x on port %d.", d.nodeId, d.port)
 
 	for {
 		select {
@@ -285,7 +297,7 @@ func (d *DHT) DoDHT() {
 					d.processPacket(p)
 					tokenBucket -= 1
 				} else {
-					// In the future it might be better to avoid dropping things like ping replies.
+					// TODO In the future it might be better to avoid dropping things like ping replies.
 					totalDroppedPackets.Add(1)
 				}
 			} else {
