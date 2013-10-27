@@ -60,6 +60,8 @@ const (
 
 var (
 	totalSent = expvar.NewInt("totalSent")
+	totalReadBytes = expvar.NewInt("totalReadBytes")
+	totalWriteBytes = expvar.NewInt("totalWriteBytes")
 )
 
 // The 'nodes' response is a string with fixed length contacts concatenated arbitrarily.
@@ -149,8 +151,10 @@ func sendMsg(conn *net.UDPConn, raddr *net.UDPAddr, query interface{}) {
 	if err := bencode.Marshal(&b, query); err != nil {
 		return
 	}
-	if _, err := conn.WriteToUDP(b.Bytes(), raddr); err != nil {
+	if n, err := conn.WriteToUDP(b.Bytes(), raddr); err != nil {
 		// debug.Println("DHT: node write failed:", err)
+	} else {
+		totalWriteBytes.Add(int64(n))
 	}
 	return
 }
@@ -213,6 +217,7 @@ func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena are
 		if n == maxUDPPacketSize {
 			// debug.Printf("DHT: Warning. Received packet with len >= %d, some data may have been discarded.\n", maxUDPPacketSize)
 		}
+		totalReadBytes.Add(int64(n))
 		if n > 0 && err == nil {
 			p := packetType{b, addr}
 			conChan <- p
