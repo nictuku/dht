@@ -168,7 +168,7 @@ func (d *DHT) PeersRequest(ih string, announce bool) {
 // when initialising the DHT with port 0, i.e. automatic port assignment,
 // in order to retrieve the actual port number used.
 func (d *DHT) Port() int {
-	return d.port;
+	return d.port
 }
 
 // AddNode informs the DHT of a new node it should add to its routing table.

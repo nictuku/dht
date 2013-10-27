@@ -59,9 +59,9 @@ const (
 )
 
 var (
-	totalSent = expvar.NewInt("totalSent")
-	totalReadBytes = expvar.NewInt("totalReadBytes")
-	totalWriteBytes = expvar.NewInt("totalWriteBytes")
+	totalSent         = expvar.NewInt("totalSent")
+	totalReadBytes    = expvar.NewInt("totalReadBytes")
+	totalWrittenBytes = expvar.NewInt("totalWrittenBytes")
 )
 
 // The 'nodes' response is a string with fixed length contacts concatenated arbitrarily.
@@ -154,7 +154,7 @@ func sendMsg(conn *net.UDPConn, raddr *net.UDPAddr, query interface{}) {
 	if n, err := conn.WriteToUDP(b.Bytes(), raddr); err != nil {
 		// debug.Println("DHT: node write failed:", err)
 	} else {
-		totalWriteBytes.Add(int64(n))
+		totalWrittenBytes.Add(int64(n))
 	}
 	return
 }
