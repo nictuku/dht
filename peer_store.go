@@ -7,8 +7,8 @@ import (
 
 const (
 	// Values "inspired" by jch's dht.c.
-	maxInfoHashes    = 16384
-	maxInfoHashPeers = 2048
+	MaxInfoHashes    = 16384
+	MaxInfoHashPeers = 2048
 )
 
 // For the inner map, the key address in binary form. value=ignored.
@@ -36,7 +36,7 @@ func (p *peerContactsSet) next() []string {
 }
 
 func (p *peerContactsSet) put(peerContact string) bool {
-	if p.Size() > maxInfoHashPeers {
+	if p.Size() > MaxInfoHashPeers {
 		return false
 	}
 	if ok := p.set[peerContact]; !ok {
@@ -59,7 +59,7 @@ func (p *peerContactsSet) Size() int {
 
 func newPeerStore() *peerStore {
 	return &peerStore{
-		infoHashPeers:        cache.NewLRUCache(maxInfoHashes),
+		infoHashPeers:        cache.NewLRUCache(MaxInfoHashes),
 		localActiveDownloads: make(map[InfoHash]bool),
 	}
 }
@@ -116,7 +116,7 @@ func (h *peerStore) addContact(ih InfoHash, peerContact string) bool {
 			return peers.put(peerContact)
 		}
 	}
-	if h.size() > maxInfoHashes {
+	if h.size() > MaxInfoHashes {
 		// Already tracking too many infohashes. Drop this insertion.
 		return false
 	}
