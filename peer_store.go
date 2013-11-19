@@ -5,7 +5,7 @@ import (
 	"container/ring"
 )
 
-const (
+var (
 	// Values "inspired" by jch's dht.c.
 	MaxInfoHashes    = 16384
 	MaxInfoHashPeers = 2048
