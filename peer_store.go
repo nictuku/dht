@@ -59,7 +59,7 @@ func (p *peerContactsSet) Size() int {
 
 func newPeerStore() *peerStore {
 	return &peerStore{
-		infoHashPeers:        cache.NewLRUCache(MaxInfoHashes),
+		infoHashPeers:        cache.NewLRUCache(uint64(MaxInfoHashes)),
 		localActiveDownloads: make(map[InfoHash]bool),
 	}
 }
