@@ -67,6 +67,7 @@ func (r *routingTable) reachableNodes() (tbl map[string][]byte) {
 			tbl[addr] = []byte(r.id)
 		}
 	}
+	reachableNodes.Set(len(tbl))
 	return
 
 }
@@ -280,4 +281,5 @@ func pingSlowly(pingRequest chan *remoteNode, needPing []*remoteNode, cleanupPer
 var (
 	totalKilledNodes = expvar.NewInt("totalKilledNodes")
 	totalNodes       = expvar.NewInt("totalNodes")
+	reachableNodes   = expvar.NewInt("reachableNodes")
 )
