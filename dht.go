@@ -212,7 +212,12 @@ func (d *DHT) DoDHT() {
 	// set automatically by the system
 	d.port = socket.LocalAddr().(*net.UDPAddr).Port
 
-	bytesArena := newArena(maxUDPPacketSize, 500)
+	// There is goroutine pushing and one popping items out of the arena.
+	// One passes work to the other. So there is little contention in the
+	// arena, so it doesn't need many items (it used to have 500!). If
+	// readFromSocket or the packet processing ever need to be
+	// parallelized, this would have to be bumped.
+	bytesArena := newArena(maxUDPPacketSize, 3)
 	go readFromSocket(socket, socketChan, bytesArena)
 
 	// Bootstrap the network.
