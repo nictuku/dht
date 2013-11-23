@@ -15,3 +15,5 @@ feature is disabled.
 For usage details and examples, see the online documentation at:
 http://go.pkgdoc.org/github.com/nictuku/dht
 
+[![Build Status](https://drone.io/github.com/nictuku/dht/status.png)](https://drone.io/github.com/nictuku/dht/latest)
+
