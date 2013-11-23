@@ -393,6 +393,7 @@ func (d *DHT) processPacket(p packetType) {
 		if query, ok := node.pendingQueries[r.T]; ok {
 			if !node.reachable {
 				node.reachable = true
+				totalReachableNodes.Add(1)
 			}
 			node.lastResponseTime = time.Now()
 			node.pastQueries[r.T] = query
@@ -795,6 +796,7 @@ func randNodeId() []byte {
 }
 
 var (
+	totalReachableNodes          = expvar.NewInt("totalReachableNodes")
 	totalGetPeersDupes           = expvar.NewInt("totalGetPeersDupes")
 	totalFindNodeDupes           = expvar.NewInt("totalFindNodeDupes")
 	totalSelfPromotions          = expvar.NewInt("totalSelfPromotions")
