@@ -12,8 +12,10 @@ It's able to process approx 3000 incoming packets per second in a single core of
 a very old AMD Athlon(tm) 64 Processor 3700+, when the optional rate-limiting
 feature is disabled.
 
-For usage details and examples, see the online documentation at:
+For usage details, see the online documentation at:
 http://go.pkgdoc.org/github.com/nictuku/dht
 
-[![Build Status](https://drone.io/github.com/nictuku/dht/status.png)](https://drone.io/github.com/nictuku/dht/latest)
+A full example is at:
+[find_infhash_and_wait](examples/find_infohash_and_wait/main.go)
 
+[![Build Status](https://drone.io/github.com/nictuku/dht/status.png)](https://drone.io/github.com/nictuku/dht/latest)
