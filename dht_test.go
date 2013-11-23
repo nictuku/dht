@@ -13,6 +13,10 @@ import (
 )
 
 func ExampleDHT() {
+	if testing.Short() {
+		fmt.Println("Peer found for the requested infohash or the test was skipped")
+		return
+	}
 	port := rand.Intn(10000) + 40000
 	d, err := NewDHTNode(port, 100, false)
 	if err != nil {
@@ -43,17 +47,20 @@ func ExampleDHT() {
 	}
 	for ih, peers := range infoHashPeers {
 		if len(peers) > 0 {
-			fmt.Printf("peer found for infohash [%x]\n", ih)
 			// Peers are encoded in binary format. Decoding example using github.com/nictuku/nettools:
 			// for _, peer := range peers {
 			// 	fmt.Println(DecodePeerAddress(peer))
 			// }
-			return
+
+			if fmt.Sprintf("%x", ih) == "d1c5676ae7ac98e8b19f63565905105e3c4c37a2" {
+				fmt.Println("Peer found for the requested infohash or the test was skipped")
+				return
+			}
 		}
 	}
 
 	// Output:
-	// peer found for infohash [d1c5676ae7ac98e8b19f63565905105e3c4c37a2]
+	// Peer found for the requested infohash or the test was skipped
 }
 
 func startDHTNode(t *testing.T) *DHT {
@@ -70,6 +77,9 @@ func startDHTNode(t *testing.T) *DHT {
 // Requires Internet access and can be flaky if the server or the internet is
 // slow.
 func TestDHTLarge(t *testing.T) {
+	if testing.Short() {
+		t.Skip("TestDHTLarge requires internet access and can be flaky. Skipping in short mode.")
+	}
 	defer stats(t)
 	node := startDHTNode(t)
 	realDHTNodes := []string{
