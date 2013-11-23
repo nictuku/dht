@@ -287,7 +287,15 @@ func pingSlowly(pingRequest chan *remoteNode, needPing []*remoteNode, cleanupPer
 }
 
 var (
+	// totalKilledNodes is a monotonically increasing counter of times nodes were killed from
+	// the routing table. If a node is later added to the routing table and killed again, it is
+	// counted twice.
 	totalKilledNodes = expvar.NewInt("totalKilledNodes")
-	totalNodes       = expvar.NewInt("totalNodes")
-	reachableNodes   = expvar.NewMap("reachableNodes")
+	// totalNodes is a monotonically increasing counter of times nodes were added to the routing
+	// table. If a node is removed then later added again, it is counted twice.
+	totalNodes = expvar.NewInt("totalNodes")
+	// reachableNodes is the count of all reachable nodes from a particular DHT node. The map
+	// key is the local node's infohash. The value is a gauge with the count of reachable nodes
+	// at the latest time the routing table was persisted on disk.
+	reachableNodes = expvar.NewMap("reachableNodes")
 )
