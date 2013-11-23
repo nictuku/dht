@@ -16,6 +16,6 @@ For usage details, see the online documentation at:
 http://go.pkgdoc.org/github.com/nictuku/dht
 
 A full example is at:
-[find_infhash_and_wait](examples/find_infohash_and_wait/main.go)
+[find_infohash_and_wait](examples/find_infohash_and_wait/main.go)
 
 [![Build Status](https://drone.io/github.com/nictuku/dht/status.png)](https://drone.io/github.com/nictuku/dht/latest)
