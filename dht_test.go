@@ -12,13 +12,15 @@ import (
 	"github.com/nictuku/nettools"
 )
 
+// ExampleDHT is a simple example that searches for a particular infohash and
+// exits when it finds any peers. A stand-alone version can be found in the
+// examples/ directory.
 func ExampleDHT() {
 	if testing.Short() {
 		fmt.Println("Peer found for the requested infohash or the test was skipped")
 		return
 	}
-	port := rand.Intn(10000) + 40000
-	d, err := NewDHTNode(port, 100, false)
+	d, err := NewDHTNode(0, 100, false)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -36,12 +38,11 @@ func ExampleDHT() {
 
 	d.PeersRequest(string(infoHash), false)
 
-	timeout := time.After(30 * time.Second)
 	var infoHashPeers map[InfoHash][]string
 	select {
 	case infoHashPeers = <-d.PeersRequestResults:
 		break
-	case <-timeout:
+	case <-time.After(30 * time.Second):
 		fmt.Printf("Could not find new peers: timed out")
 		return
 	}
@@ -64,8 +65,7 @@ func ExampleDHT() {
 }
 
 func startDHTNode(t *testing.T) *DHT {
-	port := rand.Intn(10000) + 40000
-	node, err := NewDHTNode(port, 100, false)
+	node, err := NewDHTNode(0, 100, false)
 	node.nodeId = string(randNodeId())
 	if err != nil {
 		t.Errorf("NewDHTNode(): %v", err)
