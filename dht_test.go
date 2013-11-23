@@ -93,10 +93,10 @@ func TestDHTLarge(t *testing.T) {
 		err       error
 	)
 	for i := 0; i < 10; i++ {
-		v = expvar.Get("totalReachableNodes")
+		v = expvar.Get("totalNodesReached")
 		reachable, err = strconv.Atoi(v.String())
 		if err != nil {
-			t.Errorf("totalReachableNodes conversion to int failed: %v", err)
+			t.Errorf("totalNodesReached conversion to int failed: %v", err)
 			continue
 		}
 		if reachable > 0 {
@@ -142,7 +142,7 @@ func TestDHTLarge(t *testing.T) {
 
 func stats(t *testing.T) {
 	t.Logf("=== Stats ===")
-	t.Logf("totalReachableNodes: %v", totalReachableNodes)
+	t.Logf("totalNodesReached: %v", totalNodesReached)
 	t.Logf("totalGetPeersDupes: %v", totalGetPeersDupes)
 	t.Logf("totalFindNodeDupes: %v", totalFindNodeDupes)
 	t.Logf("totalPeers: %v", totalPeers)
