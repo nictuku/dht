@@ -9,7 +9,7 @@ The DHT performs well and supports the most important features despite its
 simple API.
 
 A multi-node deployment is able to process more than 3000 incoming packets per second in a single core of
-a very old single-core AMD Athlon(tm) 64 Processor 3700+, when the optional rate-limiting feature is disabled.
+a very old AMD Athlon(tm) 64 Processor 3700+, when the optional rate-limiting feature is disabled.
 
 For usage details, see the online documentation at:
 http://go.pkgdoc.org/github.com/nictuku/dht
