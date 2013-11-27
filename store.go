@@ -10,8 +10,8 @@ import (
 	"strings"
 )
 
-// DHTStore is used to persist the routing table on disk.
-type DHTStore struct {
+// dhtStore is used to persist the routing table on disk.
+type dhtStore struct {
 	// The rest of the stack uses string, but that confuses the json
 	// Marshaller. []byte is more correct anyway.
 	Id      []byte
@@ -43,9 +43,9 @@ func mkdirStore() string {
 	return dir
 }
 
-func openStore(port int, enabled bool) (cfg *DHTStore) {
+func openStore(port int, enabled bool) (cfg *dhtStore) {
 	// TODO: File locking.
-	cfg = &DHTStore{Port: port}
+	cfg = &dhtStore{Port: port}
 	if enabled {
 		cfg.path = mkdirStore()
 
@@ -67,7 +67,7 @@ func openStore(port int, enabled bool) (cfg *DHTStore) {
 }
 
 // saveStore tries to safe the provided config in a safe way.
-func saveStore(s DHTStore) {
+func saveStore(s dhtStore) {
 	if s.path == "" {
 		return
 	}

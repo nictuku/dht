@@ -95,7 +95,7 @@ type DHT struct {
 	nodesRequest           chan ihReq
 	pingRequest            chan *remoteNode
 	clientThrottle         *nettools.ClientThrottle
-	store                  *DHTStore
+	store                  *dhtStore
 
 	// Public channels:
 	PeersRequestResults chan map[InfoHash][]string // key = infohash, v = slice of peers.
