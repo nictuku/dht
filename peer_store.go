@@ -6,8 +6,18 @@ import (
 )
 
 var (
-	// Values "inspired" by jch's dht.c.
-	MaxInfoHashes    = 16384
+	// The default values were inspired by jch's dht.c. The formula to calculate the memory
+	// usage is: MaxInfoHashes*MaxInfoHashPeers*len(peerContact).
+	//
+	// len(peerContact) is ~6 bytes, so after several days the contact store with the default
+	// values should consume 192MB of memory.
+
+	// MaxInfoHashes is the limit of number of infohashes for which we should keep a peer list.
+	// If this value and MaxInfoHashPeers are unchanged, after several days the used space in
+	// RAM would approach 192MB. Large values help keeping the DHT network healthy.
+	MaxInfoHashes = 16384
+	// MaxInfoHashPeers is the limit of number of peers to be tracked for each infohash. One
+	// single peer contact typically consumes 6 bytes.
 	MaxInfoHashPeers = 2048
 )
 
