@@ -1,5 +1,7 @@
 package dht
 
+// TODO: Cleanup stale peer contacts.
+
 import (
 	"code.google.com/p/vitess/go/cache"
 	"container/ring"
