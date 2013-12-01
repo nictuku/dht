@@ -1,7 +1,5 @@
 // DHT node for Taipei Torrent, for tracker-less peer information exchange.
-// Status:
-//  Supports all DHT operations from the specification, except:
-//  - TODO: handle announce_peer.
+// Status: Supports all DHT operations from the specification.
 
 package dht
 
@@ -31,9 +29,11 @@ package dht
 
 import (
 	"crypto/rand"
+	"crypto/sha1"
 	"expvar"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"time"
@@ -71,7 +71,8 @@ func init() {
 
 const (
 	// Try to ensure that at least these many nodes are in the routing table.
-	minNodes = 16
+	minNodes           = 16
+	secretRotatePeriod = 5 * time.Minute
 )
 
 // DHT should be created by NewDHTNode(). It provides DHT features to a
@@ -96,6 +97,7 @@ type DHT struct {
 	pingRequest            chan *remoteNode
 	clientThrottle         *nettools.ClientThrottle
 	store                  *dhtStore
+	tokenSecrets           []string
 
 	// Public channels:
 	PeersRequestResults chan map[InfoHash][]string // key = infohash, v = slice of peers.
@@ -118,6 +120,7 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err err
 
 		numTargetPeers: numTargetPeers,
 		clientThrottle: nettools.NewThrottler(),
+		tokenSecrets:   []string{newTokenSecret(), newTokenSecret()},
 	}
 	c := openStore(port, storeEnabled)
 	node.store = c
@@ -140,6 +143,15 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err err
 		}
 	}()
 	return
+}
+
+func newTokenSecret() string {
+	b := make([]byte, 5)
+	if _, err := rand.Read(b); err != nil {
+		// This would return a string with up to 5 null chars.
+		l4g.Warn("DHT: failed to generate random newTokenSecret: %v", err)
+	}
+	return string(b)
 }
 
 // Logger allows the DHT client to attach hooks for certain RPCs so it can log
@@ -224,6 +236,7 @@ func (d *DHT) DoDHT() {
 	}
 
 	cleanupTicker := time.Tick(cleanupPeriod)
+	secretRotateTicker := time.Tick(secretRotatePeriod)
 
 	saveTicker := make(<-chan time.Time)
 	if d.store != nil {
@@ -317,6 +330,8 @@ func (d *DHT) DoDHT() {
 			go pingSlowly(d.pingRequest, needPing, cleanupPeriod)
 		case node := <-d.pingRequest:
 			d.pingNode(node)
+		case <-secretRotateTicker:
+			d.tokenSecrets = []string{newTokenSecret(), d.tokenSecrets[0]}
 		case <-saveTicker:
 			tbl := d.routingTable.reachableNodes()
 			if len(tbl) > 5 {
@@ -530,16 +545,36 @@ func (d *DHT) announcePeer(address *net.UDPAddr, ih InfoHash, token string) {
 	sendMsg(d.conn, address, query)
 }
 
+func (d *DHT) hostToken(addr *net.UDPAddr, secret string) string {
+	h := sha1.New()
+	io.WriteString(h, addr.String())
+	io.WriteString(h, secret)
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+func (d *DHT) checkToken(addr *net.UDPAddr, token string) bool {
+	match := false
+	for _, secret := range d.tokenSecrets {
+		if d.hostToken(addr, secret) == token {
+			match = true
+			break
+		}
+	}
+	l4g.Trace("checkToken for %v, %q matches? %v", addr, token, match)
+	return match
+}
+
 func (d *DHT) replyAnnouncePeer(addr *net.UDPAddr, r responseType) {
+	ih := InfoHash(r.A.InfoHash)
 	l4g.Trace(func() string {
-		ih := InfoHash(r.A.InfoHash)
 		return fmt.Sprintf("DHT: announce_peer. Host %v, nodeID: %x, infoHash: %x, peerPort %d, distance to me %x",
 			addr, r.A.Id, ih, r.A.Port, hashDistance(ih, InfoHash(d.nodeId)),
 		)
 	})
-	// TODO: Check token.
-	peerAddr := net.TCPAddr{IP: addr.IP, Port: r.A.Port}
-	d.peerStore.addContact(InfoHash(r.A.InfoHash), nettools.DottedPortToBinary(peerAddr.String()))
+	if d.checkToken(addr, r.A.Token) {
+		peerAddr := net.TCPAddr{IP: addr.IP, Port: r.A.Port}
+		d.peerStore.addContact(ih, nettools.DottedPortToBinary(peerAddr.String()))
+	}
 	// Always reply positively. jech says this is to avoid "back-tracking", not sure what that means.
 	reply := replyMessage{
 		T: r.T,
@@ -561,10 +596,7 @@ func (d *DHT) replyGetPeers(addr *net.UDPAddr, r responseType) {
 	}
 
 	ih := r.A.InfoHash
-	// TODO(nictuku): Implement token rotation.
-	// See https://github.com/jech/dht/blob/master/dht.c
-	// rotate_secrets(), make_token()
-	r0 := map[string]interface{}{"id": d.nodeId, "token": "blabla"}
+	r0 := map[string]interface{}{"id": d.nodeId, "token": d.hostToken(addr, d.tokenSecrets[0])}
 	reply := replyMessage{
 		T: r.T,
 		Y: "r",

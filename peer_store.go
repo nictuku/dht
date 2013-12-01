@@ -3,8 +3,9 @@ package dht
 // TODO: Cleanup stale peer contacts.
 
 import (
-	"code.google.com/p/vitess/go/cache"
 	"container/ring"
+
+	"code.google.com/p/vitess/go/cache"
 )
 
 var (
@@ -100,7 +101,7 @@ func (h *peerStore) get(ih InfoHash) *peerContactsSet {
 	return contacts
 }
 
-// count shows the number of know peers for the given infohash.
+// count shows the number of known peers for the given infohash.
 func (h *peerStore) count(ih InfoHash) int {
 	peers := h.get(ih)
 	if peers == nil {
