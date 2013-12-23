@@ -50,8 +50,14 @@ func (p *peerContactsSet) next() []string {
 	return x
 }
 
+// put adds a peerContact to an infohash contacts set. peerContact must be a binary encoded contact
+// address where the first four bytes form the IP and the last byte is the port. IPv6 addresses are
+// not currently supported. peerContact with less than 6 bytes will not be stored.
 func (p *peerContactsSet) put(peerContact string) bool {
 	if p.Size() > MaxInfoHashPeers {
+		return false
+	}
+	if len(peerContact) < 6 {
 		return false
 	}
 	if ok := p.set[peerContact]; !ok {
@@ -120,7 +126,7 @@ func (h *peerStore) peerContacts(ih InfoHash) []string {
 }
 
 // updateContact adds peerContact as a peer for the provided ih. Returns true
-// if the contact was added, false otherwise (e.g: already present) .
+// if the contact was added, false otherwise (e.g: already present, or invalid).
 func (h *peerStore) addContact(ih InfoHash, peerContact string) bool {
 	var peers *peerContactsSet
 	p, ok := h.infoHashPeers.Get(string(ih))
