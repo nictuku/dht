@@ -109,6 +109,6 @@ func saveStore(s dhtStore) {
 		// 	log.Println("saveStore failed when replacing existing config:", err)
 		// }
 	} else {
-		log.Println("Saved DHT routing table to the filesystem.")
+		// log.Println("Saved DHT routing table to the filesystem.")
 	}
 }
