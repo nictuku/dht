@@ -39,6 +39,7 @@ import (
 	"time"
 
 	l4g "code.google.com/p/log4go"
+	log "github.com/golang/glog"
 	"github.com/nictuku/nettools"
 )
 
@@ -128,7 +129,7 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err err
 	node.store = c
 	if len(c.Id) != 20 {
 		c.Id = randNodeId()
-		l4g.Info("newId: %x %d", c.Id, len(c.Id))
+		log.Infof("newId: %x %d", c.Id, len(c.Id))
 		saveStore(*c)
 	}
 	// The types don't match because JSON marshalling needs []byte.
@@ -151,7 +152,7 @@ func newTokenSecret() string {
 	b := make([]byte, 5)
 	if _, err := rand.Read(b); err != nil {
 		// This would return a string with up to 5 null chars.
-		l4g.Warn("DHT: failed to generate random newTokenSecret: %v", err)
+		log.Warningf("DHT: failed to generate random newTokenSecret: %v", err)
 	}
 	return string(b)
 }
@@ -173,7 +174,7 @@ type ihReq struct {
 // is just a router that doesn't downloads torrents.
 func (d *DHT) PeersRequest(ih string, announce bool) {
 	d.peersRequest <- ihReq{InfoHash(ih), announce}
-	l4g.Info("DHT: torrent client asking more peers for %x.", ih)
+	log.Infof("DHT: torrent client asking more peers for %x.", ih)
 }
 
 // Port returns the port number assigned to the DHT. This is useful when
@@ -249,7 +250,7 @@ func (d *DHT) DoDHT() {
 	tokenBucket := rateLimit
 
 	if rateLimit < 0 {
-		l4g.Warn("rate limiting disabled")
+		log.Warning("rate limiting disabled")
 	} else {
 		// Token bucket for limiting the number of packets per second.
 		fillTokenBucket = time.Tick(time.Second / 10)
@@ -258,7 +259,7 @@ func (d *DHT) DoDHT() {
 			rateLimit = 10
 		}
 	}
-	l4g.Info("DHT: Starting DHT node %x on port %d.", d.nodeId, d.port)
+	log.Infof("DHT: Starting DHT node %x on port %d.", d.nodeId, d.port)
 
 M:
 	for {
@@ -392,11 +393,11 @@ func (d *DHT) processPacket(p packetType) {
 	case r.Y == "r":
 		node, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String())
 		if err != nil {
-			l4g.Info("DHT readResponse error processing response: %v", err)
+			log.Infof("DHT readResponse error processing response: %v", err)
 			return
 		}
 		if !existed {
-			l4g.Info("DHT: Received reply from a host we don't know: %v", p.raddr)
+			log.Infof("DHT: Received reply from a host we don't know: %v", p.raddr)
 			if d.routingTable.length() < maxNodes {
 				d.ping(addr)
 			}
@@ -438,11 +439,11 @@ func (d *DHT) processPacket(p packetType) {
 			case "announce_peer":
 				// Nothing to do. In the future, update counters.
 			default:
-				l4g.Info("DHT: Unknown query type: %v from %v", query.Type, addr)
+				log.Infof("DHT: Unknown query type: %v from %v", query.Type, addr)
 			}
 			delete(node.pendingQueries, r.T)
 		} else {
-			l4g.Info("DHT: Unknown query id: %v", r.T)
+			log.Infof("DHT: Unknown query id: %v", r.T)
 		}
 	case r.Y == "q":
 		_, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String())
@@ -469,14 +470,14 @@ func (d *DHT) processPacket(p packetType) {
 			l4g.Trace("DHT: non-implemented handler for type %v", r.Q)
 		}
 	default:
-		l4g.Info("DHT: Bogus DHT query from %v.", p.raddr)
+		log.Infof("DHT: Bogus DHT query from %v.", p.raddr)
 	}
 }
 
 func (d *DHT) ping(address string) {
 	r, err := d.routingTable.getOrCreateNode("", address)
 	if err != nil {
-		l4g.Info("ping error for address %v: %v", address, err)
+		log.Infof("ping error for address %v: %v", address, err)
 		return
 	}
 	d.pingNode(r)
@@ -591,10 +592,10 @@ func (d *DHT) replyAnnouncePeer(addr *net.UDPAddr, r responseType) {
 
 func (d *DHT) replyGetPeers(addr *net.UDPAddr, r responseType) {
 	totalRecvGetPeers.Add(1)
-	l4g.Info(func() string {
-		return fmt.Sprintf("DHT get_peers. Host: %v , nodeID: %x , InfoHash: %x , distance to me: %x",
+	if log.V(2) {
+		log.Infof("DHT get_peers. Host: %v , nodeID: %x , InfoHash: %x , distance to me: %x",
 			addr, r.A.Id, InfoHash(r.A.InfoHash), hashDistance(r.A.InfoHash, InfoHash(d.nodeId)))
-	})
+	}
 
 	if d.Logger != nil {
 		d.Logger.GetPeers(addr, r.A.Id, r.A.InfoHash)
@@ -703,7 +704,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 			// Finally, new peers.
 			result := map[InfoHash][]string{query.ih: peers}
 			totalPeers.Add(int64(len(peers)))
-			l4g.Info("DHT: processGetPeerResults, totalPeers: %v", totalPeers.String())
+			log.Infof("DHT: processGetPeerResults, totalPeers: %v", totalPeers.String())
 			d.PeersRequestResults <- result
 		}
 	}
