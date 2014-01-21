@@ -101,6 +101,7 @@ type DHT struct {
 
 	// Public channels:
 	PeersRequestResults chan map[InfoHash][]string // key = infohash, v = slice of peers.
+	StopDHT             chan bool
 }
 
 func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err error) {
@@ -109,6 +110,7 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err err
 		routingTable:         newRoutingTable(),
 		peerStore:            newPeerStore(),
 		PeersRequestResults:  make(chan map[InfoHash][]string, 1),
+		StopDHT:              make(chan bool),
 		exploredNeighborhood: false,
 		// Buffer to avoid blocking on sends.
 		remoteNodeAcquaintance: make(chan string, 100),
@@ -258,8 +260,11 @@ func (d *DHT) DoDHT() {
 	}
 	l4g.Info("DHT: Starting DHT node %x on port %d.", d.nodeId, d.port)
 
+M:
 	for {
 		select {
+		case _ = <-d.StopDHT:
+			break M
 		case addr := <-d.remoteNodeAcquaintance:
 			d.helloFromPeer(addr)
 		case req := <-d.peersRequest:
