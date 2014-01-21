@@ -96,13 +96,13 @@ type DHT struct {
 	peersRequest           chan ihReq
 	nodesRequest           chan ihReq
 	pingRequest            chan *remoteNode
+	stop                   chan bool
 	clientThrottle         *nettools.ClientThrottle
 	store                  *dhtStore
 	tokenSecrets           []string
 
 	// Public channels:
 	PeersRequestResults chan map[InfoHash][]string // key = infohash, v = slice of peers.
-	StopDHT             chan bool
 }
 
 func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err error) {
@@ -111,7 +111,7 @@ func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err err
 		routingTable:         newRoutingTable(),
 		peerStore:            newPeerStore(),
 		PeersRequestResults:  make(chan map[InfoHash][]string, 1),
-		StopDHT:              make(chan bool),
+		stop:                 make(chan bool),
 		exploredNeighborhood: false,
 		// Buffer to avoid blocking on sends.
 		remoteNodeAcquaintance: make(chan string, 100),
@@ -177,6 +177,11 @@ func (d *DHT) PeersRequest(ih string, announce bool) {
 	log.Infof("DHT: torrent client asking more peers for %x.", ih)
 }
 
+// Stop the DHT node.
+func (d *DHT) Stop() {
+	close(d.stop)
+}
+
 // Port returns the port number assigned to the DHT. This is useful when
 // when initialising the DHT with port 0, i.e. automatic port assignment,
 // in order to retrieve the actual port number used.
@@ -231,7 +236,7 @@ func (d *DHT) DoDHT() {
 	// readFromSocket or the packet processing ever need to be
 	// parallelized, this would have to be bumped.
 	bytesArena := newArena(maxUDPPacketSize, 3)
-	go readFromSocket(socket, socketChan, bytesArena)
+	go readFromSocket(socket, socketChan, bytesArena, d.stop)
 
 	// Bootstrap the network.
 	for _, s := range strings.Split(dhtRouters, ",") {
@@ -261,11 +266,13 @@ func (d *DHT) DoDHT() {
 	}
 	log.Infof("DHT: Starting DHT node %x on port %d.", d.nodeId, d.port)
 
-M:
 	for {
 		select {
-		case _ = <-d.StopDHT:
-			break M
+		case <-d.stop:
+			log.Infof("DHT exiting.")
+			d.clientThrottle.Stop()
+			log.Flush()
+			return
 		case addr := <-d.remoteNodeAcquaintance:
 			d.helloFromPeer(addr)
 		case req := <-d.peersRequest:
@@ -333,7 +340,7 @@ M:
 			}
 		case <-cleanupTicker:
 			needPing := d.routingTable.cleanup()
-			go pingSlowly(d.pingRequest, needPing, cleanupPeriod)
+			go pingSlowly(d.pingRequest, needPing, cleanupPeriod, d.stop)
 		case node := <-d.pingRequest:
 			d.pingNode(node)
 		case <-secretRotateTicker:

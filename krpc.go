@@ -209,7 +209,7 @@ func listen(listenPort int) (socket *net.UDPConn, err error) {
 }
 
 // Read from UDP socket, writes slice of byte into channel.
-func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena arena) {
+func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena arena, stop chan bool) {
 	for {
 		b := bytesArena.Pop()
 		n, addr, err := socket.ReadFromUDP(b)
@@ -220,10 +220,22 @@ func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena are
 		totalReadBytes.Add(int64(n))
 		if n > 0 && err == nil {
 			p := packetType{b, addr}
-			conChan <- p
-			continue
+			select {
+			case conChan <- p:
+				continue
+			case <-stop:
+				return
+			}
 		}
 		// debug.Println("DHT: readResponse error:", err)
+
+		// Do a non-blocking read of the stop channel and stop this goroutine if the channel
+		// has been closed.
+		select {
+		case <-stop:
+			return
+		default:
+		}
 	}
 }
 
