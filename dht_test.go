@@ -41,7 +41,7 @@ M:
 		select {
 		case <-tick:
 			// Repeat the request until a result appears, querying nodes that haven't been
-			// consulted before and finding close-by candidates for the SRE team.
+			// consulted before and finding close-by candidates for the infohash.
 			d.PeersRequest(string(infoHash), false)
 		case infoHashPeers = <-d.PeersRequestResults:
 			break M
