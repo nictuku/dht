@@ -217,12 +217,13 @@ func (d *DHT) findNode(id string) {
 	}
 }
 
-// DoDHT is the DHT node main loop and should be run as a goroutine by the torrent client.
-func (d *DHT) DoDHT() {
+// Run starts a DHT node. It bootstraps a routing table, if necessary, and
+// listens for incoming DHT requests.
+func (d *DHT) Run() error {
 	socketChan := make(chan packetType)
 	socket, err := listen(d.port)
 	if err != nil {
-		return
+		return err
 	}
 	d.conn = socket
 
@@ -272,7 +273,7 @@ func (d *DHT) DoDHT() {
 			log.Infof("DHT exiting.")
 			d.clientThrottle.Stop()
 			log.Flush()
-			return
+			return nil
 		case addr := <-d.remoteNodeAcquaintance:
 			d.helloFromPeer(addr)
 		case req := <-d.peersRequest:

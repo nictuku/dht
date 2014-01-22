@@ -25,7 +25,7 @@ func ExampleDHT() {
 		fmt.Println(err)
 		return
 	}
-	go d.DoDHT()
+	go d.Run()
 
 	infoHash, err := DecodeInfoHash("d1c5676ae7ac98e8b19f63565905105e3c4c37a2")
 	if err != nil {
@@ -70,7 +70,7 @@ func startDHTNode(t *testing.T) *DHT {
 	if err != nil {
 		t.Errorf("NewDHTNode(): %v", err)
 	}
-	go node.DoDHT()
+	go node.Run()
 	return node
 }
 

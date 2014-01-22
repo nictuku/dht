@@ -19,9 +19,9 @@ import (
 	"os"
 	"time"
 
+	"net/http"
 	l4g "code.google.com/p/log4go"
 	"github.com/nictuku/dht"
-	"net/http"
 )
 
 const (
@@ -59,14 +59,12 @@ func main() {
 	// For debugging.
 	go http.ListenAndServe(fmt.Sprintf(":%d", httpPortTCP), nil)
 
-	go d.DoDHT()
+	go d.Run()
 	go drainresults(d)
 
 	for {
-		// Give the DHT some time to "warm-up" its routing table.
-		time.Sleep(5 * time.Second)
-
 		d.PeersRequest(string(ih), false)
+		time.Sleep(5 * time.Second)
 	}
 }
 
