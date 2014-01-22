@@ -33,18 +33,22 @@ func ExampleDHT() {
 		return
 	}
 
-	// Give the DHT some time to "warm-up" its routing table.
-	time.Sleep(5 * time.Second)
-
-	d.PeersRequest(string(infoHash), false)
+	tick := time.Tick(time.Second)
 
 	var infoHashPeers map[InfoHash][]string
-	select {
-	case infoHashPeers = <-d.PeersRequestResults:
-		break
-	case <-time.After(30 * time.Second):
-		fmt.Printf("Could not find new peers: timed out")
-		return
+M:
+	for {
+		select {
+		case <-tick:
+			// Repeat the request until a result appears, querying nodes that haven't been
+			// consulted before and finding close-by candidates for the SRE team.
+			d.PeersRequest(string(infoHash), false)
+		case infoHashPeers = <-d.PeersRequestResults:
+			break M
+		case <-time.After(30 * time.Second):
+			fmt.Printf("Could not find new peers: timed out")
+			return
+		}
 	}
 	for ih, peers := range infoHashPeers {
 		if len(peers) > 0 {
