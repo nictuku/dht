@@ -20,7 +20,7 @@ func ExampleDHT() {
 		fmt.Println("Peer found for the requested infohash or the test was skipped")
 		return
 	}
-	d, err := NewDHTNode(0, 100, false)
+	d, err := New(0, 100, false)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -65,10 +65,10 @@ func ExampleDHT() {
 }
 
 func startDHTNode(t *testing.T) *DHT {
-	node, err := NewDHTNode(0, 100, false)
+	node, err := New(0, 100, false)
 	node.nodeId = string(randNodeId())
 	if err != nil {
-		t.Errorf("NewDHTNode(): %v", err)
+		t.Errorf("New(): %v", err)
 	}
 	go node.Run()
 	return node

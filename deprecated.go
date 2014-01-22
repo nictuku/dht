@@ -4,3 +4,8 @@ package dht
 func (d *DHT) DoDHT() {
 	d.Run()
 }
+
+// NewDHTNode has been deprecated. Please use New instead.
+func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err error) {
+	return New(port, numTargetPeers, storeEnabled)
+}

@@ -19,9 +19,9 @@ import (
 	"os"
 	"time"
 
-	"net/http"
 	l4g "code.google.com/p/log4go"
 	"github.com/nictuku/dht"
+	"net/http"
 )
 
 const (
@@ -50,9 +50,9 @@ func main() {
 	// might be moved to "PeersRequest()", so the controlling client can have
 	// different targets at different moments or for different infohashes.
 	targetNumPeers := 5
-	d, err := dht.NewDHTNode(dhtPortUDP, targetNumPeers, false)
+	d, err := dht.New(dhtPortUDP, targetNumPeers, false)
 	if err != nil {
-		l4g.Critical("NewDHTNode error: %v", err)
+		l4g.Critical("New DHT error: %v", err)
 		os.Exit(1)
 
 	}

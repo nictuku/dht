@@ -76,9 +76,9 @@ const (
 	secretRotatePeriod = 5 * time.Minute
 )
 
-// DHT should be created by NewDHTNode(). It provides DHT features to a
-// torrent client, such as finding new peers for torrent downloads without
-// requiring a tracker.
+// DHT should be created by New(). It provides DHT features to a torrent
+// client, such as finding new peers for torrent downloads without requiring a
+// tracker.
 type DHT struct {
 	nodeId string
 	port   int
@@ -105,7 +105,14 @@ type DHT struct {
 	PeersRequestResults chan map[InfoHash][]string // key = infohash, v = slice of peers.
 }
 
-func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err error) {
+// New creates a DHT node. It will try to find at least numTargetPeers for all
+// queried infoHashes. If storeEnabled is true, the node will read the routing
+// table from disk on startup and save routing table snapshots on disk every
+// few minutes.
+//
+// This method replaces NewDHTNode. numTargetPeers may soon be removed from
+// here.
+func New(port, numTargetPeers int, storeEnabled bool) (node *DHT, err error) {
 	node = &DHT{
 		port:                 port,
 		routingTable:         newRoutingTable(),

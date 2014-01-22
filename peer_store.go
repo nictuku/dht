@@ -18,11 +18,11 @@ var (
 	// MaxInfoHashes is the limit of number of infohashes for which we should keep a peer list.
 	// If this value and MaxInfoHashPeers are unchanged, after several days the used space in
 	// RAM would approach 192MB. Large values help keeping the DHT network healthy. This
-	// variable can only be changed before the DHT node is created with NewDHTNode.
+	// variable can only be changed before the DHT node is created with New.
 	MaxInfoHashes = 16384
 	// MaxInfoHashPeers is the limit of number of peers to be tracked for each infohash. One
 	// single peer contact typically consumes 6 bytes. This variable can only be changed before
-	// the DHT node is created with NewDHTNode.
+	// the DHT node is created with New.
 	MaxInfoHashPeers = 2048
 )
 
