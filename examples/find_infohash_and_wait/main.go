@@ -50,7 +50,7 @@ func main() {
 	// might be moved to "PeersRequest()", so the controlling client can have
 	// different targets at different moments or for different infohashes.
 	targetNumPeers := 5
-	d, err := dht.New(dhtPortUDP, targetNumPeers, false)
+	d, err := dht.New(dhtPortUDP, targetNumPeers, nil)
 	if err != nil {
 		l4g.Critical("New DHT error: %v", err)
 		os.Exit(1)

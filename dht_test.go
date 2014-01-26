@@ -13,6 +13,8 @@ import (
 	"github.com/nictuku/nettools"
 )
 
+var cfg = newTestConfig()
+
 // ExampleDHT is a simple example that searches for a particular infohash and
 // exits when it finds any peers. A stand-alone version can be found in the
 // examples/ directory.
@@ -21,7 +23,7 @@ func ExampleDHT() {
 		fmt.Println("Peer found for the requested infohash or the test was skipped")
 		return
 	}
-	d, err := New(0, 100, false, nil)
+	d, err := New(0, 100, cfg)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -70,7 +72,7 @@ M:
 }
 
 func startDHTNode(t *testing.T) *DHT {
-	node, err := New(0, 100, false, nil)
+	node, err := New(0, 100, cfg)
 	node.nodeId = string(randNodeId())
 	if err != nil {
 		t.Errorf("New(): %v", err)
@@ -157,7 +159,7 @@ func TestDHTLarge(t *testing.T) {
 
 func TestNewDHTConfig(t *testing.T) {
 	c := NewDefaultConfig()
-	d, err := New(6060, 10, false, c)
+	d, err := New(6060, 10, c)
 	if err != nil {
 		t.Fatalf("DHT failed to init with config: %v", err)
 	}

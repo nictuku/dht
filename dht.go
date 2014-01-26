@@ -45,30 +45,40 @@ import (
 
 // DHT Node configuration
 type Config struct {
-	// Comma separate list of DHT routers
+	// Comma separated list of DHT routers used for bootstrapping the network.
 	DHTRouters string
-	// Maximum number of nodes to store in the routing table
+	// Maximum number of nodes to store in the routing table.
 	MaxNodes int
-	// How often to ping nodes in the network to see if they are reachable
+	// How often to ping nodes in the network to see if they are reachable.
 	CleanupPeriod time.Duration
-	// How often to save the routing table to disk
+	//  If true, the node will read the routing table from disk on startup
+	//  and save routing table snapshots on disk every few minutes.
+	SaveRoutingTable bool
+	// How often to save the routing table to disk.
 	SavePeriod time.Duration
-	// Maximum packets per second to be processed
+	// Maximum packets per second to be processed.
 	RateLimit int64
 }
 
 // Creates a *Config populated with default values.
 func NewDefaultConfig() *Config {
 	return &Config{
-		DHTRouters:    "1.a.magnets.im:6881,router.utorrent.com:6881",
-		MaxNodes:      500,
-		CleanupPeriod: 15 * time.Minute,
-		SavePeriod:    5 * time.Minute,
-		RateLimit:     100,
+		DHTRouters:       "1.a.magnets.im:6881,router.utorrent.com:6881",
+		MaxNodes:         500,
+		CleanupPeriod:    15 * time.Minute,
+		SaveRoutingTable: true,
+		SavePeriod:       5 * time.Minute,
+		RateLimit:        100,
 	}
 }
 
 var DefaultConfig = NewDefaultConfig()
+
+func newTestConfig() *Config {
+	c := NewDefaultConfig()
+	c.SaveRoutingTable = false
+	return c
+}
 
 func init() {
 	// TODO: Control the verbosity via flag.
@@ -85,7 +95,7 @@ func RegisterFlags(c *Config) {
 		c = DefaultConfig
 	}
 	flag.StringVar(&c.DHTRouters, "routers", c.DHTRouters,
-		"Comma separated IP:Port address of the DHT routeirs used to bootstrap the DHT network.")
+		"Comma separated addresses of DHT routers used to bootstrap the DHT network.")
 	flag.IntVar(&c.MaxNodes, "maxNodes", c.MaxNodes,
 		"Maximum number of nodes to store in the routing table, in memory. This is the primary configuration for how noisy or aggressive this node should be. When the node starts, it will try to reach d.config.MaxNodes/2 as quick as possible, to form a healthy routing table.")
 	flag.DurationVar(&c.CleanupPeriod, "cleanupPeriod", c.CleanupPeriod,
@@ -134,13 +144,11 @@ type DHT struct {
 }
 
 // New creates a DHT node. It will try to find at least numTargetPeers for all
-// queried infoHashes. If storeEnabled is true, the node will read the routing
-// table from disk on startup and save routing table snapshots on disk every
-// few minutes.  If config is nil, DefaultConfig will be used.
+// queried infoHashes. If config is nil, DefaultConfig will be used.
 //
 // This method replaces NewDHTNode. numTargetPeers may soon be removed from
 // here.
-func New(port, numTargetPeers int, storeEnabled bool, config *Config) (node *DHT, err error) {
+func New(port, numTargetPeers int, config *Config) (node *DHT, err error) {
 	if config == nil {
 		config = DefaultConfig
 	}
@@ -164,7 +172,7 @@ func New(port, numTargetPeers int, storeEnabled bool, config *Config) (node *DHT
 		clientThrottle: nettools.NewThrottler(),
 		tokenSecrets:   []string{newTokenSecret(), newTokenSecret()},
 	}
-	c := openStore(port, storeEnabled)
+	c := openStore(port, config.SaveRoutingTable)
 	node.store = c
 	if len(c.Id) != 20 {
 		c.Id = randNodeId()
