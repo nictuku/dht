@@ -2,6 +2,7 @@ package dht
 
 import (
 	"expvar"
+	"flag"
 	"fmt"
 	"math/rand"
 	"net"
@@ -20,7 +21,7 @@ func ExampleDHT() {
 		fmt.Println("Peer found for the requested infohash or the test was skipped")
 		return
 	}
-	d, err := New(0, 100, false)
+	d, err := New(0, 100, false, nil)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -69,7 +70,7 @@ M:
 }
 
 func startDHTNode(t *testing.T) *DHT {
-	node, err := New(0, 100, false)
+	node, err := New(0, 100, false, nil)
 	node.nodeId = string(randNodeId())
 	if err != nil {
 		t.Errorf("New(): %v", err)
@@ -151,6 +152,43 @@ func TestDHTLarge(t *testing.T) {
 		for _, peer := range peers {
 			t.Logf("peer found: %v", nettools.BinaryToDottedPort(peer))
 		}
+	}
+}
+
+func TestNewDHTConfig(t *testing.T) {
+	c := NewDefaultConfig()
+	d, err := New(6060, 10, false, c)
+	if err != nil {
+		t.Fatalf("DHT failed to init with config: %v", err)
+	}
+	if d.config != c {
+		t.Fatal("DHT not initialized with config")
+	}
+}
+
+func TestRegisterFlags(t *testing.T) {
+	c := &Config{
+		DHTRouters:    "example.router.com:6060",
+		MaxNodes:      2020,
+		CleanupPeriod: time.Second,
+		SavePeriod:    time.Second * 2,
+		RateLimit:     999,
+	}
+	RegisterFlags(c)
+	if flag.Lookup("routers").DefValue != c.DHTRouters {
+		t.Fatal("Incorrect routers flag")
+	}
+	if flag.Lookup("maxNodes").DefValue != strconv.FormatInt(int64(c.MaxNodes), 10) {
+		t.Fatal("Incorrect maxNodes flag")
+	}
+	if flag.Lookup("cleanupPeriod").DefValue != c.CleanupPeriod.String() {
+		t.Fatal("Incorrect cleanupPeriod flag")
+	}
+	if flag.Lookup("savePeriod").DefValue != c.SavePeriod.String() {
+		t.Fatal("Incorrect routers flag")
+	}
+	if flag.Lookup("rateLimit").DefValue != strconv.FormatInt(c.RateLimit, 10) {
+		t.Fatal("Incorrect routers flag")
 	}
 }
 

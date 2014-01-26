@@ -184,7 +184,7 @@ func (r *routingTable) resetNeighborhoodBoundary() {
 
 }
 
-func (r *routingTable) cleanup() (needPing []*remoteNode) {
+func (r *routingTable) cleanup(cleanupPeriod time.Duration) (needPing []*remoteNode) {
 	needPing = make([]*remoteNode, 0, 10)
 	t0 := time.Now()
 	// Needs some serious optimization.

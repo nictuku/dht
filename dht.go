@@ -43,31 +43,57 @@ import (
 	"github.com/nictuku/nettools"
 )
 
-var (
-	dhtRouters    string
-	maxNodes      int
-	cleanupPeriod time.Duration
-	savePeriod    time.Duration
-	rateLimit     int64
-)
+// DHT Node configuration
+type Config struct {
+	// Comma separate list of DHT routers
+	DHTRouters string
+	// Maximum number of nodes to store in the routing table
+	MaxNodes int
+	// How often to ping nodes in the network to see if they are reachable
+	CleanupPeriod time.Duration
+	// How often to save the routing table to disk
+	SavePeriod time.Duration
+	// Maximum packets per second to be processed
+	RateLimit int64
+}
+
+// Creates a *Config populated with default values.
+func NewDefaultConfig() *Config {
+	return &Config{
+		DHTRouters:    "1.a.magnets.im:6881,router.utorrent.com:6881",
+		MaxNodes:      500,
+		CleanupPeriod: 15 * time.Minute,
+		SavePeriod:    5 * time.Minute,
+		RateLimit:     100,
+	}
+}
+
+var DefaultConfig = NewDefaultConfig()
 
 func init() {
-	flag.StringVar(&dhtRouters, "routers", "1.a.magnets.im:6881,router.utorrent.com:6881",
-		"Comma separated IP:Port address of the DHT routeirs used to bootstrap the DHT network.")
-	flag.IntVar(&maxNodes, "maxNodes", 500,
-		"Maximum number of nodes to store in the routing table, in memory. This is the primary configuration for how noisy or aggressive this node should be. When the node starts, it will try to reach maxNodes/2 as quick as possible, to form a healthy routing table.")
-	flag.DurationVar(&cleanupPeriod, "cleanupPeriod", 15*time.Minute,
-		"How often to ping nodes in the network to see if they are reachable.")
-	flag.DurationVar(&savePeriod, "savePeriod", 5*time.Minute,
-		"How often to save the routing table to disk.")
-	flag.Int64Var(&rateLimit, "rateLimit", 100,
-		"Maximum packets per second to be processed. Beyond this limit they are silently dropped. Set to -1 to disable rate limiting.")
-
 	// TODO: Control the verbosity via flag.
 	// Setting during init has two purposes:
 	// - Gives the calling program the ability to override this filter inside their main().
 	// - Provides a sane default that isn't excessively verbose.
 	l4g.AddFilter("stdout", l4g.WARNING, l4g.NewConsoleLogWriter())
+}
+
+// Registers Config fields as command line flags.  If c is nil, DefaultConfig
+// is used.
+func RegisterFlags(c *Config) {
+	if c == nil {
+		c = DefaultConfig
+	}
+	flag.StringVar(&c.DHTRouters, "routers", c.DHTRouters,
+		"Comma separated IP:Port address of the DHT routeirs used to bootstrap the DHT network.")
+	flag.IntVar(&c.MaxNodes, "maxNodes", c.MaxNodes,
+		"Maximum number of nodes to store in the routing table, in memory. This is the primary configuration for how noisy or aggressive this node should be. When the node starts, it will try to reach d.config.MaxNodes/2 as quick as possible, to form a healthy routing table.")
+	flag.DurationVar(&c.CleanupPeriod, "cleanupPeriod", c.CleanupPeriod,
+		"How often to ping nodes in the network to see if they are reachable.")
+	flag.DurationVar(&c.SavePeriod, "savePeriod", c.SavePeriod,
+		"How often to save the routing table to disk.")
+	flag.Int64Var(&c.RateLimit, "rateLimit", c.RateLimit,
+		"Maximum packets per second to be processed. Beyond this limit they are silently dropped. Set to -1 to disable rate limiting.")
 }
 
 const (
@@ -82,6 +108,8 @@ const (
 type DHT struct {
 	nodeId string
 	port   int
+
+	config *Config
 
 	routingTable *routingTable
 	peerStore    *peerStore
@@ -108,12 +136,16 @@ type DHT struct {
 // New creates a DHT node. It will try to find at least numTargetPeers for all
 // queried infoHashes. If storeEnabled is true, the node will read the routing
 // table from disk on startup and save routing table snapshots on disk every
-// few minutes.
+// few minutes.  If config is nil, DefaultConfig will be used.
 //
 // This method replaces NewDHTNode. numTargetPeers may soon be removed from
 // here.
-func New(port, numTargetPeers int, storeEnabled bool) (node *DHT, err error) {
+func New(port, numTargetPeers int, storeEnabled bool, config *Config) (node *DHT, err error) {
+	if config == nil {
+		config = DefaultConfig
+	}
 	node = &DHT{
+		config:               config,
 		port:                 port,
 		routingTable:         newRoutingTable(),
 		peerStore:            newPeerStore(),
@@ -247,29 +279,29 @@ func (d *DHT) Run() error {
 	go readFromSocket(socket, socketChan, bytesArena, d.stop)
 
 	// Bootstrap the network.
-	for _, s := range strings.Split(dhtRouters, ",") {
+	for _, s := range strings.Split(d.config.DHTRouters, ",") {
 		d.ping(s)
 	}
 
-	cleanupTicker := time.Tick(cleanupPeriod)
+	cleanupTicker := time.Tick(d.config.CleanupPeriod)
 	secretRotateTicker := time.Tick(secretRotatePeriod)
 
 	saveTicker := make(<-chan time.Time)
 	if d.store != nil {
-		saveTicker = time.Tick(savePeriod)
+		saveTicker = time.Tick(d.config.SavePeriod)
 	}
 
 	var fillTokenBucket <-chan time.Time
-	tokenBucket := rateLimit
+	tokenBucket := d.config.RateLimit
 
-	if rateLimit < 0 {
+	if d.config.RateLimit < 0 {
 		log.Warning("rate limiting disabled")
 	} else {
 		// Token bucket for limiting the number of packets per second.
 		fillTokenBucket = time.Tick(time.Second / 10)
-		if rateLimit > 0 && rateLimit < 10 {
+		if d.config.RateLimit > 0 && d.config.RateLimit < 10 {
 			// Less than 10 leads to rounding problems.
-			rateLimit = 10
+			d.config.RateLimit = 10
 		}
 	}
 	log.Infof("DHT: Starting DHT node %x on port %d.", d.nodeId, d.port)
@@ -329,7 +361,7 @@ func (d *DHT) Run() error {
 
 		case p := <-socketChan:
 			totalRecv.Add(1)
-			if rateLimit > 0 {
+			if d.config.RateLimit > 0 {
 				if tokenBucket > 0 {
 					d.processPacket(p)
 					tokenBucket -= 1
@@ -343,12 +375,12 @@ func (d *DHT) Run() error {
 			bytesArena.Push(p.b)
 
 		case <-fillTokenBucket:
-			if tokenBucket < rateLimit {
-				tokenBucket += rateLimit / 10
+			if tokenBucket < d.config.RateLimit {
+				tokenBucket += d.config.RateLimit / 10
 			}
 		case <-cleanupTicker:
-			needPing := d.routingTable.cleanup()
-			go pingSlowly(d.pingRequest, needPing, cleanupPeriod, d.stop)
+			needPing := d.routingTable.cleanup(d.config.CleanupPeriod)
+			go pingSlowly(d.pingRequest, needPing, d.config.CleanupPeriod, d.stop)
 		case node := <-d.pingRequest:
 			d.pingNode(node)
 		case <-secretRotateTicker:
@@ -365,7 +397,7 @@ func (d *DHT) Run() error {
 
 func (d *DHT) needMoreNodes() bool {
 	n := d.routingTable.numNodes()
-	return n < minNodes || n*2 < maxNodes
+	return n < minNodes || n*2 < d.config.MaxNodes
 }
 
 func (d *DHT) helloFromPeer(addr string) {
@@ -382,7 +414,7 @@ func (d *DHT) helloFromPeer(addr string) {
 		// Node host+port already known.
 		return
 	}
-	if d.routingTable.length() < maxNodes {
+	if d.routingTable.length() < d.config.MaxNodes {
 		d.ping(addrResolved)
 		return
 	}
@@ -413,7 +445,7 @@ func (d *DHT) processPacket(p packetType) {
 		}
 		if !existed {
 			log.Infof("DHT: Received reply from a host we don't know: %v", p.raddr)
-			if d.routingTable.length() < maxNodes {
+			if d.routingTable.length() < d.config.MaxNodes {
 				d.ping(addr)
 			}
 			return
@@ -468,7 +500,7 @@ func (d *DHT) processPacket(p packetType) {
 		}
 		if !existed {
 			// Another candidate for the routing table. See if it's reachable.
-			if d.routingTable.length() < maxNodes {
+			if d.routingTable.length() < d.config.MaxNodes {
 				d.ping(addr)
 			}
 		}
