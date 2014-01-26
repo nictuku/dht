@@ -45,14 +45,19 @@ import (
 
 // DHT Node configuration
 type Config struct {
+	// UDP port the DHT node should listen on. If zero, it picks a random port.
+	Port int
+	// Number of peers that DHT will try to find for each infohash being searched. This might
+	// later be moved to a per-infohash option.
+	NumTargetPeers int
 	// Comma separated list of DHT routers used for bootstrapping the network.
 	DHTRouters string
 	// Maximum number of nodes to store in the routing table.
 	MaxNodes int
 	// How often to ping nodes in the network to see if they are reachable.
 	CleanupPeriod time.Duration
-	//  If true, the node will read the routing table from disk on startup
-	//  and save routing table snapshots on disk every few minutes.
+	//  If true, the node will read the routing table from disk on startup and save routing
+	//  table snapshots on disk every few minutes.
 	SaveRoutingTable bool
 	// How often to save the routing table to disk.
 	SavePeriod time.Duration
@@ -61,8 +66,10 @@ type Config struct {
 }
 
 // Creates a *Config populated with default values.
-func NewDefaultConfig() *Config {
+func NewConfig() *Config {
 	return &Config{
+		Port:             0, // Picks a random port.
+		NumTargetPeers:   5,
 		DHTRouters:       "1.a.magnets.im:6881,router.utorrent.com:6881",
 		MaxNodes:         500,
 		CleanupPeriod:    15 * time.Minute,
@@ -72,10 +79,10 @@ func NewDefaultConfig() *Config {
 	}
 }
 
-var DefaultConfig = NewDefaultConfig()
+var DefaultConfig = NewConfig()
 
 func newTestConfig() *Config {
-	c := NewDefaultConfig()
+	c := NewConfig()
 	c.SaveRoutingTable = false
 	return c
 }
@@ -116,19 +123,12 @@ const (
 // client, such as finding new peers for torrent downloads without requiring a
 // tracker.
 type DHT struct {
-	nodeId string
-	port   int
-
-	config *Config
-
-	routingTable *routingTable
-	peerStore    *peerStore
-
-	numTargetPeers int
-
-	conn   *net.UDPConn
-	Logger Logger
-
+	nodeId                 string
+	config                 Config
+	routingTable           *routingTable
+	peerStore              *peerStore
+	conn                   *net.UDPConn
+	Logger                 Logger
 	exploredNeighborhood   bool
 	remoteNodeAcquaintance chan string
 	peersRequest           chan ihReq
@@ -143,18 +143,18 @@ type DHT struct {
 	PeersRequestResults chan map[InfoHash][]string // key = infohash, v = slice of peers.
 }
 
-// New creates a DHT node. It will try to find at least numTargetPeers for all
-// queried infoHashes. If config is nil, DefaultConfig will be used.
+// New creates a DHT node. If config is nil, DefaultConfig will be used.
+// Changing the config after calling this function has no effect.
 //
-// This method replaces NewDHTNode. numTargetPeers may soon be removed from
-// here.
-func New(port, numTargetPeers int, config *Config) (node *DHT, err error) {
+// This method replaces NewDHTNode.
+func New(config *Config) (node *DHT, err error) {
 	if config == nil {
 		config = DefaultConfig
 	}
+	// Copy to avoid changes.
+	cfg := *config
 	node = &DHT{
-		config:               config,
-		port:                 port,
+		config:               cfg,
 		routingTable:         newRoutingTable(),
 		peerStore:            newPeerStore(),
 		PeersRequestResults:  make(chan map[InfoHash][]string, 1),
@@ -163,16 +163,13 @@ func New(port, numTargetPeers int, config *Config) (node *DHT, err error) {
 		// Buffer to avoid blocking on sends.
 		remoteNodeAcquaintance: make(chan string, 100),
 		// Buffer to avoid deadlocks and blocking on sends.
-		peersRequest: make(chan ihReq, 100),
-		nodesRequest: make(chan ihReq, 100),
-
-		pingRequest: make(chan *remoteNode),
-
-		numTargetPeers: numTargetPeers,
+		peersRequest:   make(chan ihReq, 100),
+		nodesRequest:   make(chan ihReq, 100),
+		pingRequest:    make(chan *remoteNode),
 		clientThrottle: nettools.NewThrottler(),
 		tokenSecrets:   []string{newTokenSecret(), newTokenSecret()},
 	}
-	c := openStore(port, config.SaveRoutingTable)
+	c := openStore(cfg.Port, cfg.SaveRoutingTable)
 	node.store = c
 	if len(c.Id) != 20 {
 		c.Id = randNodeId()
@@ -233,7 +230,7 @@ func (d *DHT) Stop() {
 // when initialising the DHT with port 0, i.e. automatic port assignment,
 // in order to retrieve the actual port number used.
 func (d *DHT) Port() int {
-	return d.port
+	return d.config.Port
 }
 
 // AddNode informs the DHT of a new node it should add to its routing table.
@@ -268,7 +265,7 @@ func (d *DHT) findNode(id string) {
 // listens for incoming DHT requests.
 func (d *DHT) Run() error {
 	socketChan := make(chan packetType)
-	socket, err := listen(d.port)
+	socket, err := listen(d.config.Port)
 	if err != nil {
 		return err
 	}
@@ -276,7 +273,7 @@ func (d *DHT) Run() error {
 
 	// Update the stored port number in case it was set 0, meaning it was
 	// set automatically by the system
-	d.port = socket.LocalAddr().(*net.UDPAddr).Port
+	d.config.Port = socket.LocalAddr().(*net.UDPAddr).Port
 
 	// There is goroutine pushing and one popping items out of the arena.
 	// One passes work to the other. So there is little contention in the
@@ -312,7 +309,7 @@ func (d *DHT) Run() error {
 			d.config.RateLimit = 10
 		}
 	}
-	log.Infof("DHT: Starting DHT node %x on port %d.", d.nodeId, d.port)
+	log.Infof("DHT: Starting DHT node %x on port %d.", d.nodeId, d.config.Port)
 
 	for {
 		select {
@@ -346,7 +343,7 @@ func (d *DHT) Run() error {
 					d.peerStore.addLocalDownload(ih)
 				}
 
-				if d.peerStore.count(ih) < d.numTargetPeers {
+				if d.peerStore.count(ih) < d.config.NumTargetPeers {
 					d.getPeers(ih)
 				}
 			}
@@ -599,7 +596,7 @@ func (d *DHT) announcePeer(address *net.UDPAddr, ih InfoHash, token string) {
 	queryArguments := map[string]interface{}{
 		"id":        d.nodeId,
 		"info_hash": ih,
-		"port":      d.port,
+		"port":      d.config.Port,
 		"token":     token,
 	}
 	query := queryMessage{transId, "q", ty, queryArguments}
@@ -766,7 +763,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 	if resp.R.Nodes != "" {
 		for id, address := range parseNodesString(resp.R.Nodes) {
 
-			if d.peerStore.count(query.ih) >= d.numTargetPeers {
+			if d.peerStore.count(query.ih) >= d.config.NumTargetPeers {
 				return
 			}
 
@@ -799,7 +796,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 						id, address, node.id, node.address, x)
 				})
 				_, err := d.routingTable.getOrCreateNode(id, addr)
-				if err == nil && d.peerStore.count(query.ih) < d.numTargetPeers {
+				if err == nil && d.peerStore.count(query.ih) < d.config.NumTargetPeers {
 					// Re-add this request to the queue. This would in theory
 					// batch similar requests, because new nodes are already
 					// available in the routing table and will be used at the

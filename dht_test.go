@@ -23,7 +23,7 @@ func ExampleDHT() {
 		fmt.Println("Peer found for the requested infohash or the test was skipped")
 		return
 	}
-	d, err := New(0, 100, cfg)
+	d, err := New(nil)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -56,9 +56,9 @@ M:
 	for ih, peers := range infoHashPeers {
 		if len(peers) > 0 {
 			// Peers are encoded in binary format. Decoding example using github.com/nictuku/nettools:
-			// for _, peer := range peers {
-			// 	fmt.Println(DecodePeerAddress(peer))
-			// }
+			//for _, peer := range peers {
+			//	fmt.Println(DecodePeerAddress(peer))
+			//}
 
 			if fmt.Sprintf("%x", ih) == "d1c5676ae7ac98e8b19f63565905105e3c4c37a2" {
 				fmt.Println("Peer found for the requested infohash or the test was skipped")
@@ -72,7 +72,7 @@ M:
 }
 
 func startDHTNode(t *testing.T) *DHT {
-	node, err := New(0, 100, cfg)
+	node, err := New(cfg)
 	node.nodeId = string(randNodeId())
 	if err != nil {
 		t.Errorf("New(): %v", err)
@@ -158,12 +158,15 @@ func TestDHTLarge(t *testing.T) {
 }
 
 func TestNewDHTConfig(t *testing.T) {
-	c := NewDefaultConfig()
-	d, err := New(6060, 10, c)
+	c := NewConfig()
+	c.Port = 6060
+	c.NumTargetPeers = 10
+
+	d, err := New(c)
 	if err != nil {
 		t.Fatalf("DHT failed to init with config: %v", err)
 	}
-	if d.config != c {
+	if d.config.Port != c.Port || d.config.NumTargetPeers != c.NumTargetPeers {
 		t.Fatal("DHT not initialized with config")
 	}
 }

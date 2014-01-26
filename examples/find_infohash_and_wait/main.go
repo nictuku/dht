@@ -26,7 +26,6 @@ import (
 
 const (
 	httpPortTCP = 8711
-	dhtPortUDP  = 11221
 )
 
 func main() {
@@ -44,13 +43,8 @@ func main() {
 		l4g.Critical("DecodeInfoHash error: %v\n", err)
 		os.Exit(1)
 	}
-
-	// This is a hint to the DHT of the minimum number of peers it will try to
-	// find for the given node. This is not a reliable limit. In the future this
-	// might be moved to "PeersRequest()", so the controlling client can have
-	// different targets at different moments or for different infohashes.
-	targetNumPeers := 5
-	d, err := dht.New(dhtPortUDP, targetNumPeers, nil)
+	// Starts a DHT node with the default options. It picks a random UDP port. To change this, see dht.NewConfig.
+	d, err := dht.New(nil)
 	if err != nil {
 		l4g.Critical("New DHT error: %v", err)
 		os.Exit(1)

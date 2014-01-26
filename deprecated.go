@@ -5,9 +5,11 @@ func (d *DHT) DoDHT() {
 	d.Run()
 }
 
-// NewDHTNode has been deprecated. Please use New instead.
+// NewDHTNode has been deprecated. Please use New and NewConfig instead.
 func NewDHTNode(port, numTargetPeers int, storeEnabled bool) (node *DHT, err error) {
-	cfg := NewDefaultConfig()
+	cfg := NewConfig()
 	cfg.SaveRoutingTable = storeEnabled
-	return New(port, numTargetPeers, cfg)
+	cfg.Port = port
+	cfg.NumTargetPeers = numTargetPeers
+	return New(cfg)
 }
