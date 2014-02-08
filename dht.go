@@ -45,6 +45,8 @@ import (
 
 // DHT Node configuration
 type Config struct {
+	// IP Address to listen on.  If left blank, one is chosen automatically.
+	Address string
 	// UDP port the DHT node should listen on. If zero, it picks a random port.
 	Port int
 	// Number of peers that DHT will try to find for each infohash being searched. This might
@@ -68,6 +70,7 @@ type Config struct {
 // Creates a *Config populated with default values.
 func NewConfig() *Config {
 	return &Config{
+		Address:          "",
 		Port:             0, // Picks a random port.
 		NumTargetPeers:   5,
 		DHTRouters:       "1.a.magnets.im:6881,router.utorrent.com:6881",
@@ -265,7 +268,7 @@ func (d *DHT) findNode(id string) {
 // listens for incoming DHT requests.
 func (d *DHT) Run() error {
 	socketChan := make(chan packetType)
-	socket, err := listen(d.config.Port)
+	socket, err := listen(d.config.Address, d.config.Port)
 	if err != nil {
 		return err
 	}
