@@ -196,9 +196,9 @@ type packetType struct {
 	raddr *net.UDPAddr
 }
 
-func listen(listenPort int) (socket *net.UDPConn, err error) {
+func listen(addr string, listenPort int) (socket *net.UDPConn, err error) {
 	// debug.Printf("DHT: Listening for peers on port: %d\n", listenPort)
-	listener, err := net.ListenPacket("udp4", ":"+strconv.Itoa(listenPort))
+	listener, err := net.ListenPacket("udp4", addr+":"+strconv.Itoa(listenPort))
 	if err != nil {
 		// debug.Println("DHT: Listen failed:", err)
 	}
