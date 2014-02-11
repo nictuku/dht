@@ -136,6 +136,8 @@ func (h *peerStore) addContact(ih InfoHash, peerContact string) bool {
 		if okType && peers != nil {
 			return peers.put(peerContact)
 		}
+		// Bogus peer contact.
+		return false
 	}
 	if h.size() > MaxInfoHashes {
 		// Already tracking too many infohashes. Drop this insertion.
