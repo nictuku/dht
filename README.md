@@ -7,7 +7,7 @@ standalone DHT routers, or for other more creative purposes.
 
 The DHT performs well and supports the most important features despite its simple API.
 
-A multi-node deployment is able to process more than 4000 incoming packets per second in a single
+A multi-node deployment is able to process more than 4500 incoming packets per second in a single
 core of a very old AMD Athlon(tm) 64 Processor 3700+, when the optional rate-limiting feature is
 disabled.
 
