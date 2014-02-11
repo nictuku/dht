@@ -93,7 +93,7 @@ type peerStore struct {
 	localActiveDownloads map[InfoHash]bool
 }
 
-func (h *peerStore) size() int {
+func (h *peerStore) length() int {
 	length, _, _, _ := h.infoHashPeers.Stats()
 	return int(length)
 }
@@ -134,12 +134,14 @@ func (h *peerStore) addContact(ih InfoHash, peerContact string) bool {
 		var okType bool
 		peers, okType = p.(*peerContactsSet)
 		if okType && peers != nil {
+			defer h.infoHashPeers.Set(string(ih), peers)
 			return peers.put(peerContact)
 		}
 		// Bogus peer contact.
 		return false
 	}
-	if h.size() > MaxInfoHashes {
+
+	if h.length() > MaxInfoHashes {
 		// Already tracking too many infohashes. Drop this insertion.
 		return false
 	}
