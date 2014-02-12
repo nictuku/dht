@@ -60,18 +60,17 @@ func (p *peerContactsSet) put(peerContact string) bool {
 	if len(peerContact) < 6 {
 		return false
 	}
-	if ok := p.set[peerContact]; !ok {
-		p.set[peerContact] = true
-
-		r := &ring.Ring{Value: peerContact}
-		if p.ring == nil {
-			p.ring = r
-		} else {
-			p.ring.Link(r)
-		}
-		return true
+	if ok := p.set[peerContact]; ok {
+		return false
 	}
-	return false
+	p.set[peerContact] = true
+	r := &ring.Ring{Value: peerContact}
+	if p.ring == nil {
+		p.ring = r
+	} else {
+		p.ring.Link(r)
+	}
+	return true
 }
 
 func (p *peerContactsSet) Size() int {
