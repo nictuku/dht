@@ -19,9 +19,9 @@ import (
 	"os"
 	"time"
 
+	"net/http"
 	l4g "code.google.com/p/log4go"
 	"github.com/nictuku/dht"
-	"net/http"
 )
 
 const (

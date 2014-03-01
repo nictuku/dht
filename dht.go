@@ -38,7 +38,6 @@ import (
 	"strings"
 	"time"
 
-	l4g "code.google.com/p/log4go"
 	log "github.com/golang/glog"
 	"github.com/nictuku/nettools"
 )
@@ -88,14 +87,6 @@ func newTestConfig() *Config {
 	c := NewConfig()
 	c.SaveRoutingTable = false
 	return c
-}
-
-func init() {
-	// TODO: Control the verbosity via flag.
-	// Setting during init has two purposes:
-	// - Gives the calling program the ability to override this filter inside their main().
-	// - Provides a sane default that isn't excessively verbose.
-	l4g.AddFilter("stdout", l4g.WARNING, l4g.NewConsoleLogWriter())
 }
 
 // Registers Config fields as command line flags.  If c is nil, DefaultConfig
@@ -415,7 +406,7 @@ func (d *DHT) helloFromPeer(addr string) {
 	// - if it responds, save it in the routing table.
 	_, addrResolved, existed, err := d.routingTable.hostPortToNode(addr)
 	if err != nil {
-		l4g.Warn("helloFromPeer error: %v", err)
+		log.Warningf("helloFromPeer error: %v", err)
 		return
 	}
 	if existed {
@@ -440,7 +431,7 @@ func (d *DHT) processPacket(p packetType) {
 	}
 	r, err := readResponse(p)
 	if err != nil {
-		l4g.Warn("DHT: readResponse Error: %v, %q", err, string(p.b))
+		log.Warningf("DHT: readResponse Error: %v, %q", err, string(p.b))
 		return
 	}
 	switch {
@@ -468,7 +459,7 @@ func (d *DHT) processPacket(p packetType) {
 			d.routingTable.update(node)
 		}
 		if node.id != r.R.Id {
-			l4g.Debug("DHT: Node changed IDs %x => %x", node.id, r.R.Id)
+			log.Infof("DHT: Node changed IDs %x => %x", node.id, r.R.Id)
 		}
 		if query, ok := node.pendingQueries[r.T]; ok {
 			if !node.reachable {
@@ -489,7 +480,7 @@ func (d *DHT) processPacket(p packetType) {
 			switch query.Type {
 			case "ping":
 				// Served its purpose, nothing else to be done.
-				l4g.Trace("DHT: Received ping reply")
+				log.Infof("DHT: Received ping reply")
 				totalRecvPingReply.Add(1)
 			case "get_peers":
 				d.processGetPeerResults(node, r)
@@ -507,7 +498,7 @@ func (d *DHT) processPacket(p packetType) {
 	case r.Y == "q":
 		_, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String())
 		if err != nil {
-			l4g.Warn("Error readResponse error processing query: %v", err)
+			log.Warningf("Error readResponse error processing query: %v", err)
 			return
 		}
 		if !existed {
@@ -526,7 +517,7 @@ func (d *DHT) processPacket(p packetType) {
 		case "announce_peer":
 			d.replyAnnouncePeer(p.raddr, r)
 		default:
-			l4g.Trace("DHT: non-implemented handler for type %v", r.Q)
+			log.Infof("DHT: non-implemented handler for type %v", r.Q)
 		}
 	default:
 		log.Infof("DHT: Bogus DHT query from %v.", p.raddr)
@@ -543,7 +534,7 @@ func (d *DHT) ping(address string) {
 }
 
 func (d *DHT) pingNode(r *remoteNode) {
-	l4g.Debug("DHT: ping => %+v", r.address)
+	log.Infof("DHT: ping => %+v", r.address)
 	t := r.newQuery("ping")
 
 	queryArguments := map[string]interface{}{"id": d.nodeId}
@@ -562,10 +553,10 @@ func (d *DHT) getPeersFrom(r *remoteNode, ih InfoHash) {
 		"info_hash": ih,
 	}
 	query := queryMessage{transId, "q", ty, queryArguments}
-	l4g.Trace(func() string {
+	if log.V(0) {
 		x := hashDistance(InfoHash(r.id), ih)
-		return fmt.Sprintf("DHT sending get_peers. nodeID: %x@%v, InfoHash: %x , distance: %x", r.id, r.address, ih, x)
-	})
+		log.Infof("DHT sending get_peers. nodeID: %x@%v, InfoHash: %x , distance: %x", r.id, r.address, ih, x)
+	}
 	sendMsg(d.conn, r.address, query)
 }
 
@@ -574,17 +565,17 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 	ty := "find_node"
 	transId := r.newQuery(ty)
 	ih := InfoHash(id)
-	l4g.Trace("findNodeFrom adding pendingQueries transId=%v ih=%x", transId, ih)
+	log.Infof("findNodeFrom adding pendingQueries transId=%v ih=%x", transId, ih)
 	r.pendingQueries[transId].ih = ih
 	queryArguments := map[string]interface{}{
 		"id":     d.nodeId,
 		"target": id,
 	}
 	query := queryMessage{transId, "q", ty, queryArguments}
-	l4g.Trace(func() string {
+	if log.V(0) {
 		x := hashDistance(InfoHash(r.id), ih)
-		return fmt.Sprintf("DHT sending find_node. nodeID: %x@%v, target ID: %x , distance: %x", r.id, r.address, id, x)
-	})
+		log.Infof("DHT sending find_node. nodeID: %x@%v, target ID: %x , distance: %x", r.id, r.address, id, x)
+	}
 	sendMsg(d.conn, r.address, query)
 }
 
@@ -594,11 +585,11 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 func (d *DHT) announcePeer(address *net.UDPAddr, ih InfoHash, token string) {
 	r, err := d.routingTable.getOrCreateNode("", address.String())
 	if err != nil {
-		l4g.Trace("announcePeer:", err)
+		log.Infof("announcePeer:", err)
 		return
 	}
 	ty := "announce_peer"
-	l4g.Trace("DHT: announce_peer => %v %x %x", address, ih, token)
+	log.Infof("DHT: announce_peer => %v %x %x", address, ih, token)
 	transId := r.newQuery(ty)
 	queryArguments := map[string]interface{}{
 		"id":        d.nodeId,
@@ -625,17 +616,17 @@ func (d *DHT) checkToken(addr *net.UDPAddr, token string) bool {
 			break
 		}
 	}
-	l4g.Trace("checkToken for %v, %q matches? %v", addr, token, match)
+	log.Infof("checkToken for %v, %q matches? %v", addr, token, match)
 	return match
 }
 
 func (d *DHT) replyAnnouncePeer(addr *net.UDPAddr, r responseType) {
 	ih := InfoHash(r.A.InfoHash)
-	l4g.Trace(func() string {
-		return fmt.Sprintf("DHT: announce_peer. Host %v, nodeID: %x, infoHash: %x, peerPort %d, distance to me %x",
+	if log.V(0) {
+		log.Infof("DHT: announce_peer. Host %v, nodeID: %x, infoHash: %x, peerPort %d, distance to me %x",
 			addr, r.A.Id, ih, r.A.Port, hashDistance(ih, InfoHash(d.nodeId)),
 		)
-	})
+	}
 	if d.checkToken(addr, r.A.Token) {
 		peerAddr := net.TCPAddr{IP: addr.IP, Port: r.A.Port}
 		d.peerStore.addContact(ih, nettools.DottedPortToBinary(peerAddr.String()))
@@ -683,32 +674,32 @@ func (d *DHT) nodesForInfoHash(ih InfoHash) string {
 		if r != nil {
 			binaryHost := r.id + nettools.DottedPortToBinary(r.address.String())
 			if binaryHost == "" {
-				l4g.Trace("killing node with bogus address %v", r.address.String())
+				log.Infof("killing node with bogus address %v", r.address.String())
 				d.routingTable.kill(r)
 			} else {
 				n = append(n, binaryHost)
 			}
 		}
 	}
-	l4g.Trace("replyGetPeers: Nodes only. Giving %d", len(n))
+	log.Infof("replyGetPeers: Nodes only. Giving %d", len(n))
 	return strings.Join(n, "")
 }
 
 func (d *DHT) peersForInfoHash(ih InfoHash) []string {
 	peerContacts := d.peerStore.peerContacts(ih)
 	if len(peerContacts) > 0 {
-		l4g.Trace("replyGetPeers: Giving peers! %x was requested, and we knew %d peers!", ih, len(peerContacts))
+		log.Infof("replyGetPeers: Giving peers! %x was requested, and we knew %d peers!", ih, len(peerContacts))
 	}
 	return peerContacts
 }
 
 func (d *DHT) replyFindNode(addr *net.UDPAddr, r responseType) {
 	totalRecvFindNode.Add(1)
-	l4g.Trace(func() string {
+	if log.V(0) {
 		x := hashDistance(InfoHash(r.A.Target), InfoHash(d.nodeId))
-		return fmt.Sprintf("DHT find_node. Host: %v , nodeId: %x , target ID: %x , distance to me: %x",
+		log.Infof("DHT find_node. Host: %v , nodeId: %x , target ID: %x , distance to me: %x",
 			addr, r.A.Id, r.A.Target, x)
-	})
+	}
 
 	node := InfoHash(r.A.Target)
 	r0 := map[string]interface{}{"id": d.nodeId}
@@ -726,13 +717,13 @@ func (d *DHT) replyFindNode(addr *net.UDPAddr, r responseType) {
 	for _, r := range neighbors {
 		n = append(n, r.id+r.addressBinaryFormat)
 	}
-	l4g.Trace("replyFindNode: Nodes only. Giving %d", len(n))
+	log.Infof("replyFindNode: Nodes only. Giving %d", len(n))
 	reply.R["nodes"] = strings.Join(n, "")
 	sendMsg(d.conn, addr, reply)
 }
 
 func (d *DHT) replyPing(addr *net.UDPAddr, response responseType) {
-	l4g.Trace("DHT: reply ping => %v", addr)
+	log.Infof("DHT: reply ping => %v", addr)
 	reply := replyMessage{
 		T: response.T,
 		Y: "r",
@@ -777,7 +768,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 			// If it's in our routing table already, ignore it.
 			_, addr, existed, err := d.routingTable.hostPortToNode(address)
 			if err != nil {
-				l4g.Trace("DHT error parsing get peers node: %v", err)
+				log.Infof("DHT error parsing get peers node: %v", err)
 				continue
 			}
 			if addr == node.address.String() {
@@ -789,19 +780,19 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 				continue
 			}
 			if existed {
-				l4g.Trace(func() string {
+				if log.V(0) {
 					x := hashDistance(query.ih, InfoHash(node.id))
-					return fmt.Sprintf("DHT: processGetPeerResults DUPE node reference: %x@%v from %x@%v. Distance: %x.",
+					log.Infof("DHT: processGetPeerResults DUPE node reference: %x@%v from %x@%v. Distance: %x.",
 						id, address, node.id, node.address, x)
-				})
+				}
 				totalGetPeersDupes.Add(1)
 			} else {
 				// And it is actually new. Interesting.
-				l4g.Trace(func() string {
+				if log.V(0) {
 					x := hashDistance(query.ih, InfoHash(node.id))
-					return fmt.Sprintf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.",
+					log.Infof("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.",
 						id, address, node.id, node.address, x)
-				})
+				}
 				_, err := d.routingTable.getOrCreateNode(id, addr)
 				if err == nil && d.peerStore.count(query.ih) < d.config.NumTargetPeers {
 					// Re-add this request to the queue. This would in theory
@@ -842,7 +833,7 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 		for id, address := range parseNodesString(resp.R.Nodes) {
 			_, addr, existed, err := d.routingTable.hostPortToNode(address)
 			if err != nil {
-				l4g.Trace("DHT error parsing node from find_find response: %v", err)
+				log.Infof("DHT error parsing node from find_find response: %v", err)
 				continue
 			}
 			if addr == node.address.String() {
@@ -852,18 +843,18 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 				continue
 			}
 			if existed {
-				l4g.Trace(func() string {
+				if log.V(0) {
 					x := hashDistance(query.ih, InfoHash(node.id))
-					return fmt.Sprintf("DHT: processFindNodeResults DUPE node reference, query %x: %x@%v from %x@%v. Distance: %x.",
+					log.Infof("DHT: processFindNodeResults DUPE node reference, query %x: %x@%v from %x@%v. Distance: %x.",
 						query.ih, id, address, node.id, node.address, x)
-				})
+				}
 				totalFindNodeDupes.Add(1)
 			} else {
-				l4g.Trace(func() string {
+				if log.V(0) {
 					x := hashDistance(query.ih, InfoHash(node.id))
-					return fmt.Sprintf("DHT: Got new node reference, query %x: %x@%v from %x@%v. Distance: %x.",
+					log.Infof("DHT: Got new node reference, query %x: %x@%v from %x@%v. Distance: %x.",
 						query.ih, id, address, node.id, node.address, x)
-				})
+				}
 				// Includes the node in the routing table and ignores errors.
 				//
 				// Only continue the search if we really have to.
@@ -887,7 +878,7 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 func randNodeId() []byte {
 	b := make([]byte, 20)
 	if _, err := rand.Read(b); err != nil {
-		l4g.Exit("nodeId rand:", err)
+		log.Fatalln("nodeId rand:", err)
 	}
 	return b
 }
