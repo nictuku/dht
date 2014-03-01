@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"net/http"
-	l4g "code.google.com/p/log4go"
 	"github.com/nictuku/dht"
 )
 
@@ -30,8 +29,8 @@ const (
 
 func main() {
 	flag.Parse()
-	// Change to l4g.DEBUG to see *lots* of debugging information.
-	l4g.AddFilter("stdout", l4g.WARNING, l4g.NewConsoleLogWriter())
+	// To see logs, use the -logtostderr flag and change the verbosity with
+	// -v 0 (less verbose) up to -v 5 (more verbose).
 	if len(flag.Args()) != 1 {
 		fmt.Fprintf(os.Stderr, "Usage: %v <infohash>\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Example infohash: d1c5676ae7ac98e8b19f63565905105e3c4c37a2\n")
@@ -40,13 +39,13 @@ func main() {
 	}
 	ih, err := dht.DecodeInfoHash(flag.Args()[0])
 	if err != nil {
-		l4g.Critical("DecodeInfoHash error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "DecodeInfoHash error: %v\n", err)
 		os.Exit(1)
 	}
 	// Starts a DHT node with the default options. It picks a random UDP port. To change this, see dht.NewConfig.
 	d, err := dht.New(nil)
 	if err != nil {
-		l4g.Critical("New DHT error: %v", err)
+		fmt.Fprintf(os.Stderr, "New DHT error: %v", err)
 		os.Exit(1)
 
 	}
@@ -65,12 +64,12 @@ func main() {
 // drainresults loops, printing the address of nodes it has found.
 func drainresults(n *dht.DHT) {
 	fmt.Println("=========================== DHT")
-	l4g.Warn("Note that there are many bad nodes that reply to anything you ask.")
-	l4g.Warn("Peers found:")
+	fmt.Println("Note that there are many bad nodes that reply to anything you ask.")
+	fmt.Println("Peers found:")
 	for r := range n.PeersRequestResults {
 		for _, peers := range r {
 			for _, x := range peers {
-				l4g.Warn("%v", dht.DecodePeerAddress(x))
+				fmt.Printf("%v\n", dht.DecodePeerAddress(x))
 			}
 		}
 	}

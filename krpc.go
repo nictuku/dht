@@ -11,7 +11,7 @@ import (
 	"time"
 
 	bencode "code.google.com/p/bencode-go"
-	l4g "code.google.com/p/log4go"
+	log "github.com/golang/glog"
 	"github.com/nictuku/nettools"
 )
 
@@ -68,8 +68,8 @@ var (
 func parseNodesString(nodes string) (parsed map[string]string) {
 	parsed = make(map[string]string)
 	if len(nodes)%nodeContactLen > 0 {
-		l4g.Info("DHT: Invalid length of nodes.")
-		l4g.Info("DHT: Should be a multiple of %d, got %d", nodeContactLen, len(nodes))
+		log.V(3).Infof("DHT: Invalid length of nodes.")
+		log.V(3).Infof("DHT: Should be a multiple of %d, got %d", nodeContactLen, len(nodes))
 		return
 	}
 	for i := 0; i < len(nodes); i += nodeContactLen {
@@ -85,10 +85,10 @@ func parseNodesString(nodes string) (parsed map[string]string) {
 // It does not set any extra information to the transaction information, so the
 // caller must take care of that.
 func (r *remoteNode) newQuery(transType string) (transId string) {
-	l4g.Trace("newQuery for %x, lastID %v", r.id, r.lastQueryID)
+	log.V(4).Infof("newQuery for %x, lastID %v", r.id, r.lastQueryID)
 	r.lastQueryID = (r.lastQueryID + 1) % 256
 	transId = strconv.Itoa(r.lastQueryID)
-	l4g.Trace("... new id %v", r.lastQueryID)
+	log.V(4).Infof("... new id %v", r.lastQueryID)
 	r.pendingQueries[transId] = &queryType{Type: transType}
 	return
 }

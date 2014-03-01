@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	l4g "code.google.com/p/log4go"
+	log "github.com/golang/glog"
 )
 
 func newRoutingTable() *routingTable {
@@ -60,7 +60,7 @@ func (r *routingTable) reachableNodes() (tbl map[string][]byte) {
 	tbl = make(map[string][]byte)
 	for addr, r := range r.addresses {
 		if addr == "" {
-			l4g.Warn("reachableNodes: found empty address for node %x.", r.id)
+			log.V(3).Infof("reachableNodes: found empty address for node %x.", r.id)
 			continue
 		}
 		if r.reachable && len(r.id) == 20 {
@@ -190,12 +190,12 @@ func (r *routingTable) cleanup(cleanupPeriod time.Duration) (needPing []*remoteN
 	// Needs some serious optimization.
 	for addr, n := range r.addresses {
 		if addr != n.address.String() {
-			l4g.Warn("cleanup: node address mismatches: %v != %v. Deleting node", addr, n.address.String())
+			log.V(3).Infof("cleanup: node address mismatches: %v != %v. Deleting node", addr, n.address.String())
 			r.kill(n)
 			continue
 		}
 		if addr == "" {
-			l4g.Warn("cleanup: found empty address for node %x. Deleting node", n.id)
+			log.V(3).Infof("cleanup: found empty address for node %x. Deleting node", n.id)
 			r.kill(n)
 			continue
 		}
@@ -205,7 +205,7 @@ func (r *routingTable) cleanup(cleanupPeriod time.Duration) (needPing []*remoteN
 			}
 			// Tolerate 2 cleanup cycles.
 			if time.Since(n.lastResponseTime) > cleanupPeriod*2+(time.Minute) {
-				l4g.Trace("DHT: Old node seen %v ago. Deleting", time.Since(n.lastResponseTime))
+				log.V(4).Infof("DHT: Old node seen %v ago. Deleting", time.Since(n.lastResponseTime))
 				r.kill(n)
 				continue
 			}
@@ -218,7 +218,7 @@ func (r *routingTable) cleanup(cleanupPeriod time.Duration) (needPing []*remoteN
 			// Not reachable.
 			if len(n.pendingQueries) > 2 {
 				// Didn't reply to 2 consecutive queries.
-				l4g.Trace("DHT: Node never replied to ping. Deleting. %v", n.address)
+				log.V(4).Infof("DHT: Node never replied to ping. Deleting. %v", n.address)
 				r.kill(n)
 				continue
 			}
@@ -230,7 +230,7 @@ func (r *routingTable) cleanup(cleanupPeriod time.Duration) (needPing []*remoteN
 	// If this pauses the server for too long I may have to segment the cleanup.
 	// 2000 nodes: it takes ~12ms
 	// 4000 nodes: ~24ms.
-	l4g.Info("DHT: Routing table cleanup took %v", duration)
+	log.V(3).Info("DHT: Routing table cleanup took %v", duration)
 	return needPing
 }
 
@@ -259,7 +259,7 @@ func (r *routingTable) neighborhoodUpkeep(n *remoteNode) {
 
 func (r *routingTable) addNewNeighbor(n *remoteNode, displaceBoundary bool) {
 	if err := r.insert(n); err != nil {
-		l4g.Warn("addNewNeighbor: %v", err)
+		log.V(3).Infof("addNewNeighbor error: %v", err)
 		return
 	}
 	if displaceBoundary && r.boundaryNode != nil {
@@ -268,7 +268,7 @@ func (r *routingTable) addNewNeighbor(n *remoteNode, displaceBoundary bool) {
 	} else {
 		r.resetNeighborhoodBoundary()
 	}
-	l4g.Trace("New neighbor added to neighborhood with proximity %d", r.proximity)
+	log.V(4).Infof("New neighbor added to neighborhood with proximity %d", r.proximity)
 }
 
 // pingSlowly pings the remote nodes in needPing, distributing the pings

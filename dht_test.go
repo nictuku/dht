@@ -4,7 +4,6 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
-	"math/rand"
 	"net"
 	"strconv"
 	"testing"
@@ -73,7 +72,6 @@ M:
 
 func startDHTNode(t *testing.T) *DHT {
 	node, err := New(cfg)
-	node.nodeId = string(randNodeId())
 	if err != nil {
 		t.Errorf("New(): %v", err)
 	}
@@ -205,8 +203,4 @@ func stats(t *testing.T) {
 	t.Logf("totalPeers: %v", totalPeers)
 	t.Logf("totalSentFindNode: %v", totalSentFindNode)
 	t.Logf("totalSentGetPeers: %v", totalSentGetPeers)
-}
-
-func init() {
-	rand.Seed((time.Now().Unix() % (1e9 - 1)))
 }
