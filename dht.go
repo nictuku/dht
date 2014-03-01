@@ -72,7 +72,7 @@ func NewConfig() *Config {
 		Address:          "",
 		Port:             0, // Picks a random port.
 		NumTargetPeers:   5,
-		DHTRouters:       "1.a.magnets.im:6881,router.utorrent.com:6881",
+		DHTRouters:       "1.a.magnets.im:6881,router.bittorrent.com:6881,dht.transmissionbt.com:6881",
 		MaxNodes:         500,
 		CleanupPeriod:    15 * time.Minute,
 		SaveRoutingTable: true,
