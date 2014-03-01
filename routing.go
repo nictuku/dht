@@ -1,7 +1,7 @@
 package dht
 
 import (
-	l4g "code.google.com/p/log4go"
+	log "github.com/golang/glog"
 )
 
 // DHT routing using a binary tree and no buckets.
@@ -225,7 +225,7 @@ func (n *nTree) isOK(ih InfoHash) bool {
 	}
 
 	recent := r.wasContactedRecently(ih)
-	l4g.Trace("wasContactedRecently for ih=%x in node %x@%v returned %v", ih, r.id, r.address, recent)
+	log.Infof("wasContactedRecently for ih=%x in node %x@%v returned %v", ih, r.id, r.address, recent)
 	if recent {
 		return false
 	}
