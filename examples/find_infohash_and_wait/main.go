@@ -1,12 +1,12 @@
-// Runs a node on UDP port 11221 that attempts to collect 100 peers for an
+// Runs a node on a random UDP port that attempts to collect 10 peers for an
 // infohash, then keeps running as a passive DHT node.
 //
 // IMPORTANT: if the UDP port is not reachable from the public internet, you
 // may see very few results.
 //
-// To collect 100 peers, it usually has to contact some 10k nodes. This process
-// is not instant and should take a minute or two, depending on your network
-// connection.
+// To collect 10 peers, it usually has to contact some 1k nodes. It's much easier
+// to find peers for popular infohashes. This process is not instant and should
+// take a minute or two, depending on your network connection.
 //
 //
 // There is a builtin web server that can be used to collect debugging stats
@@ -19,12 +19,14 @@ import (
 	"os"
 	"time"
 
-	"net/http"
 	"github.com/nictuku/dht"
+	"net/http"
 )
 
 const (
 	httpPortTCP = 8711
+	numTarget   = 10
+	exampleIH   = "deca7a89a1dbdc4b213de1c0d5351e92582f31fb" // ubuntu-12.04.4-desktop-amd64.iso
 )
 
 func main() {
@@ -33,7 +35,7 @@ func main() {
 	// -v 0 (less verbose) up to -v 5 (more verbose).
 	if len(flag.Args()) != 1 {
 		fmt.Fprintf(os.Stderr, "Usage: %v <infohash>\n\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "Example infohash: d1c5676ae7ac98e8b19f63565905105e3c4c37a2\n")
+		fmt.Fprintf(os.Stderr, "Example infohash: %v\n", exampleIH)
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
@@ -63,13 +65,18 @@ func main() {
 
 // drainresults loops, printing the address of nodes it has found.
 func drainresults(n *dht.DHT) {
+	count := 0
 	fmt.Println("=========================== DHT")
 	fmt.Println("Note that there are many bad nodes that reply to anything you ask.")
 	fmt.Println("Peers found:")
 	for r := range n.PeersRequestResults {
 		for _, peers := range r {
 			for _, x := range peers {
-				fmt.Printf("%v\n", dht.DecodePeerAddress(x))
+				fmt.Printf("%d: %v\n", count, dht.DecodePeerAddress(x))
+				count++
+				if count >= numTarget {
+					os.Exit(0)
+				}
 			}
 		}
 	}
