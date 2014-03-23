@@ -55,7 +55,7 @@ import (
 // - New incoming and outgoing KRPCs should also be logged with V(3).
 // - Debugging and tracing should be logged with V(4) or higher.
 
-// DHT Node configuration
+// Config for the DHT Node. Use NewConfig to create a configuration with default values.
 type Config struct {
 	// IP Address to listen on.  If left blank, one is chosen automatically.
 	Address string
@@ -77,6 +77,13 @@ type Config struct {
 	SavePeriod time.Duration
 	// Maximum packets per second to be processed.
 	RateLimit int64
+	// MaxInfoHashes is the limit of number of infohashes for which we should keep a peer list.
+	// If this and MaxInfoHashPeers are unchanged, it should consume around 25 MB of RAM. Larger
+	// values help keeping the DHT network healthy. Default value: 2048.
+	MaxInfoHashes int
+	// MaxInfoHashPeers is the limit of number of peers to be tracked for each infohash. A
+	// single peer contact typically consumes 6 bytes. Default value: 256.
+	MaxInfoHashPeers int
 }
 
 // Creates a *Config populated with default values.
@@ -91,6 +98,8 @@ func NewConfig() *Config {
 		SaveRoutingTable: true,
 		SavePeriod:       5 * time.Minute,
 		RateLimit:        100,
+		MaxInfoHashes:    2048,
+		MaxInfoHashPeers: 256,
 	}
 }
 
@@ -163,7 +172,7 @@ func New(config *Config) (node *DHT, err error) {
 	node = &DHT{
 		config:               cfg,
 		routingTable:         newRoutingTable(),
-		peerStore:            newPeerStore(),
+		peerStore:            newPeerStore(cfg.MaxInfoHashes, cfg.MaxInfoHashPeers),
 		PeersRequestResults:  make(chan map[InfoHash][]string, 1),
 		stop:                 make(chan bool),
 		exploredNeighborhood: false,

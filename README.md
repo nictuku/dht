@@ -13,7 +13,7 @@ disabled.
 
 ![Performance stats](https://lh4.googleusercontent.com/-mIBD-SKmAcY/UpU8hxnMyTI/AAAAAAABE5g/5KsLuwu7jOM/w600-no/Screenshot+2013-11-27+at+1.27.40+AM.png)
 
-By default, if left running for several days the DHT node should use approx. 200MB of RAM. This can
+By default, if left running for several days the DHT node should use approx. 30MB of RAM. This can
 be adjusted by decreasing MaxInfoHashes and MaxInfoHashPeers accordingly.
 
 For usage details, see the online documentation at:

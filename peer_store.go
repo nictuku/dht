@@ -8,24 +8,6 @@ import (
 	"code.google.com/p/vitess/go/cache"
 )
 
-var (
-	// The default values were inspired by jch's dht.c. The formula to calculate the memory
-	// usage is: MaxInfoHashes*MaxInfoHashPeers*len(peerContact).
-	//
-	// len(peerContact) is ~6 bytes, so after several days the contact store with the default
-	// values should consume 192MB of memory.
-
-	// MaxInfoHashes is the limit of number of infohashes for which we should keep a peer list.
-	// If this value and MaxInfoHashPeers are unchanged, after several days the used space in
-	// RAM would approach 192MB. Large values help keeping the DHT network healthy. This
-	// variable can only be changed before the DHT node is created with New.
-	MaxInfoHashes = 16384
-	// MaxInfoHashPeers is the limit of number of peers to be tracked for each infohash. One
-	// single peer contact typically consumes 6 bytes. This variable can only be changed before
-	// the DHT node is created with New.
-	MaxInfoHashPeers = 2048
-)
-
 // For the inner map, the key address in binary form. value=ignored.
 type peerContactsSet struct {
 	set map[string]bool
@@ -37,8 +19,8 @@ type peerContactsSet struct {
 // different set of contacts, if possible.
 func (p *peerContactsSet) next() []string {
 	count := kNodes
-	if count > p.Size() {
-		count = p.Size()
+	if count > len(p.set) {
+		count = len(p.set)
 	}
 	x := make([]string, 0, count)
 	var next *ring.Ring
@@ -54,9 +36,6 @@ func (p *peerContactsSet) next() []string {
 // address where the first four bytes form the IP and the last byte is the port. IPv6 addresses are
 // not currently supported. peerContact with less than 6 bytes will not be stored.
 func (p *peerContactsSet) put(peerContact string) bool {
-	if p.Size() > MaxInfoHashPeers {
-		return false
-	}
 	if len(peerContact) < 6 {
 		return false
 	}
@@ -73,14 +52,17 @@ func (p *peerContactsSet) put(peerContact string) bool {
 	return true
 }
 
+// Size is the number of contacts known for an infohash.
 func (p *peerContactsSet) Size() int {
 	return len(p.set)
 }
 
-func newPeerStore() *peerStore {
+func newPeerStore(maxInfoHashes, maxInfoHashPeers int) *peerStore {
 	return &peerStore{
-		infoHashPeers:        cache.NewLRUCache(uint64(MaxInfoHashes)),
+		infoHashPeers:        cache.NewLRUCache(uint64(maxInfoHashes)),
 		localActiveDownloads: make(map[InfoHash]bool),
+		maxInfoHashes:        maxInfoHashes,
+		maxInfoHashPeers:     maxInfoHashPeers,
 	}
 }
 
@@ -90,6 +72,8 @@ type peerStore struct {
 	infoHashPeers *cache.LRUCache
 	// infoHashes for which we are peers.
 	localActiveDownloads map[InfoHash]bool
+	maxInfoHashes        int
+	maxInfoHashPeers     int
 }
 
 func (h *peerStore) length() int {
@@ -112,7 +96,7 @@ func (h *peerStore) count(ih InfoHash) int {
 	if peers == nil {
 		return 0
 	}
-	return peers.Size()
+	return len(peers.set)
 }
 
 // peerContacts returns a random set of 8 peers for the ih InfoHash.
@@ -124,8 +108,8 @@ func (h *peerStore) peerContacts(ih InfoHash) []string {
 	return peers.next()
 }
 
-// updateContact adds peerContact as a peer for the provided ih. Returns true
-// if the contact was added, false otherwise (e.g: already present, or invalid).
+// addContact as a peer for the provided ih. Returns true if the contact was
+// added, false otherwise (e.g: already present, or invalid).
 func (h *peerStore) addContact(ih InfoHash, peerContact string) bool {
 	var peers *peerContactsSet
 	p, ok := h.infoHashPeers.Get(string(ih))
@@ -133,6 +117,12 @@ func (h *peerStore) addContact(ih InfoHash, peerContact string) bool {
 		var okType bool
 		peers, okType = p.(*peerContactsSet)
 		if okType && peers != nil {
+			if len(peers.set) > h.maxInfoHashPeers {
+				// Already tracking too many peers for this infohash.
+				// TODO: Use a circular buffer and discard
+				// other contacts.
+				return false
+			}
 			defer h.infoHashPeers.Set(string(ih), peers)
 			return peers.put(peerContact)
 		}
@@ -140,7 +130,8 @@ func (h *peerStore) addContact(ih InfoHash, peerContact string) bool {
 		return false
 	}
 
-	if h.length() > MaxInfoHashes {
+	// TODO: Remove? This is probably breaking the LRU.
+	if h.length() > h.maxInfoHashes {
 		// Already tracking too many infohashes. Drop this insertion.
 		return false
 	}
