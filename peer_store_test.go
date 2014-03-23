@@ -26,11 +26,10 @@ func TestPeerStorage(t *testing.T) {
 	if p.count(ih) != 2 {
 		t.Fatalf("Repeated 2nd contact, got count %v, wanted 2", p.count(ih))
 	}
-	// XXX
-	// p.addContact(ih, "XXXXXX")
-	// if p.count(ih) != 2 {
-	//	t.Fatalf("Added 3d contact, got count %v, wanted 2", p.count(ih))
-	// }
+	p.addContact(ih, "XXXXXX")
+	if p.count(ih) != 2 {
+		t.Fatalf("Added 3rd contact, got count %v, wanted 2", p.count(ih))
+	}
 
 	ih2, err := DecodeInfoHash("deca7a89a1dbdc4b213de1c0d5351e92582f31fb")
 	if err != nil {
