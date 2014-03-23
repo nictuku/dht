@@ -5,7 +5,7 @@ package dht
 import (
 	"container/ring"
 
-	"code.google.com/p/vitess/go/cache"
+	"github.com/golang/groupcache/lru"
 )
 
 // For the inner map, the key address in binary form. value=ignored.
@@ -59,7 +59,7 @@ func (p *peerContactsSet) Size() int {
 
 func newPeerStore(maxInfoHashes, maxInfoHashPeers int) *peerStore {
 	return &peerStore{
-		infoHashPeers:        cache.NewLRUCache(uint64(maxInfoHashes)),
+		infoHashPeers:        lru.New(maxInfoHashes),
 		localActiveDownloads: make(map[InfoHash]bool),
 		maxInfoHashes:        maxInfoHashes,
 		maxInfoHashPeers:     maxInfoHashPeers,
@@ -69,16 +69,11 @@ func newPeerStore(maxInfoHashes, maxInfoHashPeers int) *peerStore {
 type peerStore struct {
 	// cache of peers for infohashes. Each key is an infohash and the
 	// values are peerContactsSet.
-	infoHashPeers *cache.LRUCache
+	infoHashPeers *lru.Cache
 	// infoHashes for which we are peers.
 	localActiveDownloads map[InfoHash]bool
 	maxInfoHashes        int
 	maxInfoHashPeers     int
-}
-
-func (h *peerStore) length() int {
-	length, _, _, _ := h.infoHashPeers.Stats()
-	return int(length)
 }
 
 func (h *peerStore) get(ih InfoHash) *peerContactsSet {
@@ -117,26 +112,19 @@ func (h *peerStore) addContact(ih InfoHash, peerContact string) bool {
 		var okType bool
 		peers, okType = p.(*peerContactsSet)
 		if okType && peers != nil {
-			if len(peers.set) > h.maxInfoHashPeers {
+			if len(peers.set) >= h.maxInfoHashPeers {
 				// Already tracking too many peers for this infohash.
 				// TODO: Use a circular buffer and discard
 				// other contacts.
 				return false
 			}
-			defer h.infoHashPeers.Set(string(ih), peers)
+			h.infoHashPeers.Add(string(ih), peers)
 			return peers.put(peerContact)
 		}
-		// Bogus peer contact.
-		return false
-	}
-
-	// TODO: Remove? This is probably breaking the LRU.
-	if h.length() > h.maxInfoHashes {
-		// Already tracking too many infohashes. Drop this insertion.
-		return false
+		// Bogus peer contacts, reset them.
 	}
 	peers = &peerContactsSet{set: make(map[string]bool)}
-	h.infoHashPeers.Set(string(ih), peers)
+	h.infoHashPeers.Add(string(ih), peers)
 	return peers.put(peerContact)
 }
 
