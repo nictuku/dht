@@ -62,20 +62,20 @@ type Config struct {
 	// UDP port the DHT node should listen on. If zero, it picks a random port.
 	Port int
 	// Number of peers that DHT will try to find for each infohash being searched. This might
-	// later be moved to a per-infohash option.
+	// later be moved to a per-infohash option. Default value: 5.
 	NumTargetPeers int
 	// Comma separated list of DHT routers used for bootstrapping the network.
 	DHTRouters string
-	// Maximum number of nodes to store in the routing table.
+	// Maximum number of nodes to store in the routing table. Default value: 100.
 	MaxNodes int
-	// How often to ping nodes in the network to see if they are reachable.
+	// How often to ping nodes in the network to see if they are reachable. Default value: 15 min.
 	CleanupPeriod time.Duration
 	//  If true, the node will read the routing table from disk on startup and save routing
-	//  table snapshots on disk every few minutes.
+	//  table snapshots on disk every few minutes. Default value: true.
 	SaveRoutingTable bool
-	// How often to save the routing table to disk.
+	// How often to save the routing table to disk. Default value: 5 minutes.
 	SavePeriod time.Duration
-	// Maximum packets per second to be processed.
+	// Maximum packets per second to be processed. Disabled if negative. Default value: 100.
 	RateLimit int64
 	// MaxInfoHashes is the limit of number of infohashes for which we should keep a peer list.
 	// If this and MaxInfoHashPeers are unchanged, it should consume around 25 MB of RAM. Larger
