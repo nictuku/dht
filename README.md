@@ -17,7 +17,7 @@ By default, if left running for several days the DHT node should use approx. 200
 be adjusted by decreasing MaxInfoHashes and MaxInfoHashPeers accordingly.
 
 For usage details, see the online documentation at:
-http://go.pkgdoc.org/github.com/nictuku/dht
+http://godoc.org/github.com/nictuku/dht
 
 A full example is at:
 [find_infohash_and_wait](examples/find_infohash_and_wait/main.go)
