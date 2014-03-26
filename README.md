@@ -14,7 +14,7 @@ disabled.
 ![Performance stats](https://lh5.googleusercontent.com/-fqWcxpm2L5k/UzMd1MXYjfI/AAAAAAABJrM/huYWTUBPAA4/w928-h580-no/perf.png)
 
 By default, if left running for several days the DHT node should use approx. 30MB of RAM. This can
-be adjusted by decreasing MaxInfoHashes and MaxInfoHashPeers accordingly.
+be adjusted by changing MaxInfoHashes and MaxInfoHashPeers accordingly.
 
 For usage details, see the online documentation at:
 http://godoc.org/github.com/nictuku/dht
