@@ -2,7 +2,7 @@ This is a golang Kademlia/Bittorrent DHT library that implements [BEP
 5](http://www.bittorrent.org/beps/bep_0005.html).
 
 It's typically used by a torrent client such as
-[Taipei-Torrent](http://github.com/nictuku/Taipei-Torrent), but it could also be used by a
+[Taipei-Torrent](http://github.com/jackpal/Taipei-Torrent), but it could also be used by a
 standalone DHT routers, or for other more creative purposes.
 
 The DHT performs well and supports the most important features despite its simple API.
