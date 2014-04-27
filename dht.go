@@ -299,9 +299,11 @@ func (d *DHT) Run() error {
 	bytesArena := newArena(maxUDPPacketSize, 3)
 	go readFromSocket(socket, socketChan, bytesArena, d.stop)
 
-	// Bootstrap the network.
-	for _, s := range strings.Split(d.config.DHTRouters, ",") {
-		d.ping(s)
+	// Bootstrap the network (only if there are configured dht routers).
+	if d.config.DHTRouters != "" {
+		for _, s := range strings.Split(d.config.DHTRouters, ",") {
+			d.ping(s)
+		}
 	}
 
 	cleanupTicker := time.Tick(d.config.CleanupPeriod)
