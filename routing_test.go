@@ -43,6 +43,8 @@ func BenchmarkInsertRecursive(b *testing.B) {
 
 func BenchmarkFindClosest(b *testing.B) {
 	b.StopTimer()
+	cfg := NewConfig()
+	cfg.SaveRoutingTable = false
 	node, err := New(cfg)
 	node.nodeId = "00bcdefghij01234567"
 	if err != nil {

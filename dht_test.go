@@ -12,8 +12,6 @@ import (
 	"github.com/nictuku/nettools"
 )
 
-var cfg = newTestConfig()
-
 // ExampleDHT is a simple example that searches for a particular infohash and
 // exits when it finds any peers. A stand-alone version can be found in the
 // examples/ directory.
@@ -70,15 +68,6 @@ M:
 	// Peer found for the requested infohash or the test was skipped
 }
 
-func startDHTNode(t *testing.T) *DHT {
-	node, err := New(cfg)
-	if err != nil {
-		t.Errorf("New(): %v", err)
-	}
-	go node.Run()
-	return node
-}
-
 // Requires Internet access and can be flaky if the server or the internet is
 // slow.
 func TestDHTLarge(t *testing.T) {
@@ -86,7 +75,13 @@ func TestDHTLarge(t *testing.T) {
 		t.Skip("TestDHTLarge requires internet access and can be flaky. Skipping in short mode.")
 	}
 	defer stats(t)
-	node := startDHTNode(t)
+	c := NewConfig()
+	c.SaveRoutingTable = false
+	node, err := New(c)
+	if err != nil {
+		t.Fatalf("dht New: %v", err)
+	}
+	go node.Run()
 	realDHTNodes := []string{
 		"1.a.magnets.im",
 		"router.utorrent.com",
@@ -105,7 +100,6 @@ func TestDHTLarge(t *testing.T) {
 	var (
 		reachable int
 		v         expvar.Var
-		err       error
 	)
 	for i := 0; i < 10; i++ {
 		v = expvar.Get("totalNodesReached")

@@ -105,12 +105,6 @@ func NewConfig() *Config {
 
 var DefaultConfig = NewConfig()
 
-func newTestConfig() *Config {
-	c := NewConfig()
-	c.SaveRoutingTable = false
-	return c
-}
-
 // Registers Config fields as command line flags.  If c is nil, DefaultConfig
 // is used.
 func RegisterFlags(c *Config) {
