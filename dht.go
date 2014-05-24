@@ -480,6 +480,7 @@ func (d *DHT) processPacket(p packetType) {
 			log.V(3).Infof("DHT: Node changed IDs %x => %x", node.id, r.R.Id)
 		}
 		if query, ok := node.pendingQueries[r.T]; ok {
+			log.V(4).Infof("DHT: Received reply to %v", query.Type)
 			if !node.reachable {
 				node.reachable = true
 				totalNodesReached.Add(1)
@@ -498,7 +499,6 @@ func (d *DHT) processPacket(p packetType) {
 			switch query.Type {
 			case "ping":
 				// Served its purpose, nothing else to be done.
-				log.V(4).Infof("DHT: Received ping reply")
 				totalRecvPingReply.Add(1)
 			case "get_peers":
 				d.processGetPeerResults(node, r)
