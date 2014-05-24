@@ -514,7 +514,7 @@ func (d *DHT) processPacket(p packetType) {
 			log.V(3).Infof("DHT: Unknown query id: %v", r.T)
 		}
 	case r.Y == "q":
-		_, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String())
+		node, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String())
 		if err != nil {
 			log.Warningf("Error readResponse error processing query: %v", err)
 			return
@@ -533,7 +533,7 @@ func (d *DHT) processPacket(p packetType) {
 		case "find_node":
 			d.replyFindNode(p.raddr, r)
 		case "announce_peer":
-			d.replyAnnouncePeer(p.raddr, r)
+			d.replyAnnouncePeer(node, r)
 		default:
 			log.V(3).Infof("DHT: non-implemented handler for type %v", r.Q)
 		}
@@ -638,7 +638,8 @@ func (d *DHT) checkToken(addr *net.UDPAddr, token string) bool {
 	return match
 }
 
-func (d *DHT) replyAnnouncePeer(addr *net.UDPAddr, r responseType) {
+func (d *DHT) replyAnnouncePeer(node *remoteNode, r responseType) {
+	addr := node.address
 	ih := InfoHash(r.A.InfoHash)
 	if log.V(3) {
 		log.Infof("DHT: announce_peer. Host %v, nodeID: %x, infoHash: %x, peerPort %d, distance to me %x",
@@ -648,6 +649,10 @@ func (d *DHT) replyAnnouncePeer(addr *net.UDPAddr, r responseType) {
 	if d.checkToken(addr, r.A.Token) {
 		peerAddr := net.TCPAddr{IP: addr.IP, Port: r.A.Port}
 		d.peerStore.addContact(ih, nettools.DottedPortToBinary(peerAddr.String()))
+		// Allow searching this node immediately, since it's telling us
+		// it has an infohash. Enables faster upgrade of other nodes to
+		// "peer" of an infohash, if the announcement is valid.
+		node.lastResponseTime = time.Now().Add(-searchRetryPeriod)
 	}
 	// Always reply positively. jech says this is to avoid "back-tracking", not sure what that means.
 	reply := replyMessage{
