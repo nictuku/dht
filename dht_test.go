@@ -85,7 +85,7 @@ func startNode(routers string) (*DHT, error) {
 }
 
 // drainResults loops until the target number of peers are found, or a time limit is reached.
-func drainResults(n *DHT, target int, timeout time.Duration) error {
+func drainResults(n *DHT, ih string, targetCount int, timeout time.Duration) error {
 	count := 0
 	for {
 		select {
@@ -94,13 +94,16 @@ func drainResults(n *DHT, target int, timeout time.Duration) error {
 				for _, x := range peers {
 					fmt.Printf("Found peer %d: %v\n", count, DecodePeerAddress(x))
 					count++
-					if count >= target {
+					if count >= targetCount {
 						return nil
 					}
 				}
 			}
 		case <-time.Tick(timeout):
 			return fmt.Errorf("drainResult timed out")
+
+		case <-time.Tick(time.Second / 5):
+			n.PeersRequest(ih, true)
 		}
 	}
 }
@@ -123,18 +126,21 @@ func TestDHTLocal(t *testing.T) {
 		t.Errorf("n3 startNode: %v", err)
 		return
 	}
-	infoHash := InfoHash("\xb4\x62\xc0\xa8\xbc\xef\x1c\xe5\xbb\x56\xb9\xfd\xb8\xcf\x37\xff\xd0\x2f\x5f\x59")
+	time.Sleep(10 * time.Second)
+	infoHash, err := DecodeInfoHash("d1c5676ae7ac98e8b19f63565905105e3c4c37a2")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
 	// n2 and n3 should find each other.
-	for _, node := range []*DHT{n2, n3} {
-		go node.PeersRequest(string(infoHash), true)
-
+	if err := drainResults(n2, string(infoHash), 1, 10*time.Second); err != nil {
+		t.Errorf("drainResult n2: %v", err)
 	}
-	if err := drainResults(n2, 1, 5*time.Second); err != nil {
-		t.Logf("drainResult n2: %v", err) // TODO: Change to error after the bug is fixed.
+	if err := drainResults(n3, string(infoHash), 1, 10*time.Second); err != nil {
+		t.Errorf("drainResult n3: %v", err)
 	}
-	if err := drainResults(n3, 1, 5*time.Second); err != nil {
-		t.Logf("drainResult n3: %v", err)
-	}
+	n1.Stop()
+	n2.Stop()
+	n3.Stop()
 }
 
 // Requires Internet access and can be flaky if the server or the internet is
