@@ -609,8 +609,7 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 // announcePeer sends a message to the destination address to advertise that
 // our node is a peer for this infohash, using the provided token to
 // 'authenticate'.
-func (d *DHT) announcePeer(address net.UDPAddr, ih InfoHash, token string) {
-	fmt.Printf("lllllllllllllllllllllll len %v, ih %x\n", len(ih), ih)
+func (d *DHT) announcePeer(address *net.UDPAddr, ih InfoHash, token string) {
 	r, err := d.routingTable.getOrCreateNode("", address.String())
 	if err != nil {
 		log.V(3).Infof("announcePeer error: %v", err)
