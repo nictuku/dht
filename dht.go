@@ -442,13 +442,16 @@ func (d *DHT) helloFromPeer(addr string) {
 }
 
 func (d *DHT) processPacket(p packetType) {
+	log.V(5).Infof("DHT processing packet from %v", p.raddr.String())
 	if !d.clientThrottle.CheckBlock(p.raddr.IP.String()) {
 		totalPacketsFromBlockedHosts.Add(1)
+		log.V(5).Infof("Node exceeded rate limiter. Dropping packet.")
 		return
 	}
 	if p.b[0] != 'd' {
 		// Malformed DHT packet. There are protocol extensions out
 		// there that we don't support or understand.
+		log.V(5).Infof("Malformed DHT packet.")
 		return
 	}
 	r, err := readResponse(p)
@@ -459,6 +462,7 @@ func (d *DHT) processPacket(p packetType) {
 	switch {
 	// Response.
 	case r.Y == "r":
+		log.V(5).Infof("DHT processing response from %x", r.R.Id)
 		if bogusId(r.R.Id) {
 			log.V(3).Infof("DHT received packet with bogus node id %x", r.R.Id)
 			return
@@ -529,6 +533,7 @@ func (d *DHT) processPacket(p packetType) {
 				d.ping(addr)
 			}
 		}
+		log.V(5).Infof("DHT processing %v request", r.Q)
 		switch r.Q {
 		case "ping":
 			d.replyPing(p.raddr, r)
@@ -604,14 +609,15 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 // announcePeer sends a message to the destination address to advertise that
 // our node is a peer for this infohash, using the provided token to
 // 'authenticate'.
-func (d *DHT) announcePeer(address *net.UDPAddr, ih InfoHash, token string) {
+func (d *DHT) announcePeer(address net.UDPAddr, ih InfoHash, token string) {
+	fmt.Printf("lllllllllllllllllllllll len %v, ih %x\n", len(ih), ih)
 	r, err := d.routingTable.getOrCreateNode("", address.String())
 	if err != nil {
 		log.V(3).Infof("announcePeer error: %v", err)
 		return
 	}
 	ty := "announce_peer"
-	log.Infof("DHT: announce_peer => %v %x %x", address, ih, token)
+	log.Infof("DHT: announce_peer => address: %v, ih: %x, token: %x", address, ih, token)
 	transId := r.newQuery(ty)
 	queryArguments := map[string]interface{}{
 		"id":        d.nodeId,
