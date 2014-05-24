@@ -144,6 +144,7 @@ type DHT struct {
 	peersRequest           chan ihReq
 	nodesRequest           chan ihReq
 	pingRequest            chan *remoteNode
+	portRequest            chan int
 	stop                   chan bool
 	clientThrottle         *nettools.ClientThrottle
 	store                  *dhtStore
@@ -176,6 +177,7 @@ func New(config *Config) (node *DHT, err error) {
 		peersRequest:   make(chan ihReq, 100),
 		nodesRequest:   make(chan ihReq, 100),
 		pingRequest:    make(chan *remoteNode),
+		portRequest:    make(chan int),
 		clientThrottle: nettools.NewThrottler(),
 		tokenSecrets:   []string{newTokenSecret(), newTokenSecret()},
 	}
@@ -240,7 +242,7 @@ func (d *DHT) Stop() {
 // when initialising the DHT with port 0, i.e. automatic port assignment,
 // in order to retrieve the actual port number used.
 func (d *DHT) Port() int {
-	return d.config.Port
+	return <-d.portRequest
 }
 
 // AddNode informs the DHT of a new node it should add to its routing table.
@@ -402,6 +404,8 @@ func (d *DHT) Run() error {
 			d.pingNode(node)
 		case <-secretRotateTicker:
 			d.tokenSecrets = []string{newTokenSecret(), d.tokenSecrets[0]}
+		case d.portRequest <- d.config.Port:
+			continue
 		case <-saveTicker:
 			tbl := d.routingTable.reachableNodes()
 			if len(tbl) > 5 {
