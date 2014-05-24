@@ -68,6 +68,75 @@ M:
 	// Peer found for the requested infohash or the test was skipped
 }
 
+func startNode(routers string) (*DHT, error) {
+	c := NewConfig()
+	c.SaveRoutingTable = false
+	c.DHTRouters = routers
+	c.Port = 0
+	node, err := New(c)
+	if err != nil {
+		return nil, err
+	}
+	go node.Run()
+	for node.Port() == 0 {
+		time.Sleep(time.Second)
+	}
+	return node, nil
+}
+
+// drainResults loops until the target number of peers are found, or a time limit is reached.
+func drainResults(n *DHT, target int, timeout time.Duration) error {
+	count := 0
+	for {
+		select {
+		case r := <-n.PeersRequestResults:
+			for _, peers := range r {
+				for _, x := range peers {
+					fmt.Printf("Found peer %d: %v\n", count, DecodePeerAddress(x))
+					count++
+					if count >= target {
+						return nil
+					}
+				}
+			}
+		case <-time.Tick(timeout):
+			return fmt.Errorf("drainResult timed out")
+		}
+	}
+}
+
+func TestDHTLocal(t *testing.T) {
+	n1, err := startNode("")
+	if err != nil {
+		t.Errorf("n1 startNode: %v", err)
+		return
+	}
+
+	router := fmt.Sprintf("localhost:%d", n1.Port())
+	n2, err := startNode(router)
+	if err != nil {
+		t.Errorf("n2 startNode: %v", err)
+		return
+	}
+	n3, err := startNode(router)
+	if err != nil {
+		t.Errorf("n3 startNode: %v", err)
+		return
+	}
+	infoHash := InfoHash("\xb4\x62\xc0\xa8\xbc\xef\x1c\xe5\xbb\x56\xb9\xfd\xb8\xcf\x37\xff\xd0\x2f\x5f\x59")
+	// n2 and n3 should find each other.
+	for _, node := range []*DHT{n2, n3} {
+		go node.PeersRequest(string(infoHash), true)
+
+	}
+	if err := drainResults(n2, 1, 5*time.Second); err != nil {
+		t.Logf("drainResult n2: %v", err) // TODO: Change to error after the bug is fixed.
+	}
+	if err := drainResults(n3, 1, 5*time.Second); err != nil {
+		t.Logf("drainResult n3: %v", err)
+	}
+}
+
 // Requires Internet access and can be flaky if the server or the internet is
 // slow.
 func TestDHTLarge(t *testing.T) {

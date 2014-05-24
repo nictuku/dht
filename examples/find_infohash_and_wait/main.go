@@ -16,11 +16,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"time"
 
 	"github.com/nictuku/dht"
-	"net/http"
 )
 
 const (
