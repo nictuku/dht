@@ -99,7 +99,7 @@ func genremoteNode(id string) *remoteNode {
 
 }
 
-func randUDPAddr() *net.UDPAddr {
+func randUDPAddr() net.UDPAddr {
 	b := make([]byte, 4)
 	for {
 		n, err := rand.Read(b)
@@ -108,7 +108,7 @@ func randUDPAddr() *net.UDPAddr {
 		}
 		break
 	}
-	return &net.UDPAddr{
+	return net.UDPAddr{
 		IP:   b,
 		Port: 1111,
 	}

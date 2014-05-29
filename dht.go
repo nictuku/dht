@@ -216,7 +216,7 @@ func newTokenSecret() string {
 // Logger allows the DHT client to attach hooks for certain RPCs so it can log
 // interesting events any way it wants.
 type Logger interface {
-	GetPeers(*net.UDPAddr, string, InfoHash)
+	GetPeers(net.UDPAddr, string, InfoHash)
 }
 
 type ihReq struct {
@@ -613,7 +613,7 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 // announcePeer sends a message to the destination address to advertise that
 // our node is a peer for this infohash, using the provided token to
 // 'authenticate'.
-func (d *DHT) announcePeer(address *net.UDPAddr, ih InfoHash, token string) {
+func (d *DHT) announcePeer(address net.UDPAddr, ih InfoHash, token string) {
 	r, err := d.routingTable.getOrCreateNode("", address.String())
 	if err != nil {
 		log.V(3).Infof("announcePeer error: %v", err)
@@ -632,14 +632,14 @@ func (d *DHT) announcePeer(address *net.UDPAddr, ih InfoHash, token string) {
 	sendMsg(d.conn, address, query)
 }
 
-func (d *DHT) hostToken(addr *net.UDPAddr, secret string) string {
+func (d *DHT) hostToken(addr net.UDPAddr, secret string) string {
 	h := sha1.New()
 	io.WriteString(h, addr.String())
 	io.WriteString(h, secret)
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-func (d *DHT) checkToken(addr *net.UDPAddr, token string) bool {
+func (d *DHT) checkToken(addr net.UDPAddr, token string) bool {
 	match := false
 	for _, secret := range d.tokenSecrets {
 		if d.hostToken(addr, secret) == token {
@@ -676,7 +676,7 @@ func (d *DHT) replyAnnouncePeer(node *remoteNode, r responseType) {
 	sendMsg(d.conn, addr, reply)
 }
 
-func (d *DHT) replyGetPeers(addr *net.UDPAddr, r responseType) {
+func (d *DHT) replyGetPeers(addr net.UDPAddr, r responseType) {
 	totalRecvGetPeers.Add(1)
 	if log.V(3) {
 		log.Infof("DHT get_peers. Host: %v , nodeID: %x , InfoHash: %x , distance to me: %x",
@@ -729,7 +729,7 @@ func (d *DHT) peersForInfoHash(ih InfoHash) []string {
 	return peerContacts
 }
 
-func (d *DHT) replyFindNode(addr *net.UDPAddr, r responseType) {
+func (d *DHT) replyFindNode(addr net.UDPAddr, r responseType) {
 	totalRecvFindNode.Add(1)
 	if log.V(3) {
 		x := hashDistance(InfoHash(r.A.Target), InfoHash(d.nodeId))
@@ -758,7 +758,7 @@ func (d *DHT) replyFindNode(addr *net.UDPAddr, r responseType) {
 	sendMsg(d.conn, addr, reply)
 }
 
-func (d *DHT) replyPing(addr *net.UDPAddr, response responseType) {
+func (d *DHT) replyPing(addr net.UDPAddr, response responseType) {
 	log.V(3).Infof("DHT: reply ping => %v", addr)
 	reply := replyMessage{
 		T: response.T,

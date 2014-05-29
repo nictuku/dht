@@ -17,7 +17,7 @@ import (
 
 // Owned by the DHT engine.
 type remoteNode struct {
-	address *net.UDPAddr
+	address net.UDPAddr
 	// addressDotFormatted contains a binary representation of the node's host:port address.
 	addressBinaryFormat string
 	id                  string
@@ -30,10 +30,11 @@ type remoteNode struct {
 	pastQueries      map[string]*queryType // key: transaction ID
 	reachable        bool
 	lastResponseTime time.Time
+	lastSearchTime   time.Time
 	ActiveDownloads  []string // List of infohashes we know this peer is downloading.
 }
 
-func newRemoteNode(addr *net.UDPAddr, id string) *remoteNode {
+func newRemoteNode(addr net.UDPAddr, id string) *remoteNode {
 	return &remoteNode{
 		address:             addr,
 		addressBinaryFormat: nettools.DottedPortToBinary(addr.String()),
@@ -145,13 +146,13 @@ type responseType struct {
 }
 
 // sendMsg bencodes the data in 'query' and sends it to the remote node.
-func sendMsg(conn *net.UDPConn, raddr *net.UDPAddr, query interface{}) {
+func sendMsg(conn *net.UDPConn, raddr net.UDPAddr, query interface{}) {
 	totalSent.Add(1)
 	var b bytes.Buffer
 	if err := bencode.Marshal(&b, query); err != nil {
 		return
 	}
-	if n, err := conn.WriteToUDP(b.Bytes(), raddr); err != nil {
+	if n, err := conn.WriteToUDP(b.Bytes(), &raddr); err != nil {
 		// debug.Println("DHT: node write failed:", err)
 	} else {
 		totalWrittenBytes.Add(int64(n))
@@ -193,7 +194,7 @@ type replyMessage struct {
 
 type packetType struct {
 	b     []byte
-	raddr *net.UDPAddr
+	raddr net.UDPAddr
 }
 
 func listen(addr string, listenPort int) (socket *net.UDPConn, err error) {
@@ -219,7 +220,7 @@ func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena are
 		}
 		totalReadBytes.Add(int64(n))
 		if n > 0 && err == nil {
-			p := packetType{b, addr}
+			p := packetType{b, *addr}
 			select {
 			case conChan <- p:
 				continue

@@ -63,7 +63,7 @@ func BenchmarkFindClosest(b *testing.B) {
 		r := &remoteNode{
 			lastQueryID: 0,
 			id:          string(rId) + ffff,
-			address:     &address,
+			address:     address,
 		}
 		if len(r.id) != 20 {
 			b.Fatalf("remoteNode construction error, wrong len: want %d, got %d",
