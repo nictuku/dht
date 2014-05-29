@@ -238,8 +238,8 @@ func (r *routingTable) cleanup(cleanupPeriod time.Duration) (needPing []*remoteN
 // the 8 nodes in our neighborhood, by replacing the least close one
 // (boundary). n.id is assumed to have length 20.
 func (r *routingTable) neighborhoodUpkeep(n *remoteNode) {
-	if r.proximity == 0 {
-		r.addNewNeighbor(n, true)
+	if r.boundaryNode == nil {
+		r.addNewNeighbor(n, false)
 		return
 	}
 	if r.length() < kNodes {
@@ -248,7 +248,7 @@ func (r *routingTable) neighborhoodUpkeep(n *remoteNode) {
 	}
 	cmp := commonBits(r.nodeId, n.id)
 	if cmp == 0 {
-		// Same node id.
+		// Not significantly better.
 		return
 	}
 	if cmp > r.proximity {
