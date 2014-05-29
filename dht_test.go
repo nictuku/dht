@@ -110,6 +110,10 @@ func drainResults(n *DHT, ih string, targetCount int, timeout time.Duration) err
 }
 
 func TestDHTLocal(t *testing.T) {
+	if testing.Short() {
+		fmt.Println("Skipping TestDHTLocal")
+		return
+	}
 	infoHash, err := DecodeInfoHash("d1c5676ae7ac98e8b19f63565905105e3c4c37a2")
 	if err != nil {
 		t.Fatalf(err.Error())
