@@ -522,6 +522,10 @@ func (d *DHT) processPacket(p packetType) {
 			log.V(3).Infof("DHT: Unknown query id: %v", r.T)
 		}
 	case r.Y == "q":
+		if r.A.Id == d.nodeId {
+			log.V(3).Infof("DHT received packet from self, id %x", r.A.Id)
+			return
+		}
 		node, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String())
 		if err != nil {
 			log.Warningf("Error readResponse error processing query: %v", err)
@@ -792,7 +796,10 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 	}
 	if resp.R.Nodes != "" {
 		for id, address := range parseNodesString(resp.R.Nodes) {
-
+			if id == d.nodeId {
+				log.V(5).Infof("DHT got reference of self for get_peers, id %x", id)
+				continue
+			}
 			if d.peerStore.count(query.ih) >= d.config.NumTargetPeers {
 				return
 			}
@@ -866,6 +873,10 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 			_, addr, existed, err := d.routingTable.hostPortToNode(address)
 			if err != nil {
 				log.V(3).Infof("DHT error parsing node from find_find response: %v", err)
+				continue
+			}
+			if id == d.nodeId {
+				log.V(5).Infof("DHT got reference of self for find_node, id %x", id)
 				continue
 			}
 			if addr == node.address.String() {
