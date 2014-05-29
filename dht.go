@@ -467,6 +467,10 @@ func (d *DHT) processPacket(p packetType) {
 			log.V(3).Infof("DHT received packet with bogus node id %x", r.R.Id)
 			return
 		}
+		if r.R.Id == d.nodeId {
+			log.V(3).Infof("DHT received reply from self, id %x", r.A.Id)
+			return
+		}
 		node, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String())
 		if err != nil {
 			log.V(3).Infof("DHT readResponse error processing response: %v", err)
