@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -68,7 +69,7 @@ M:
 	// Peer found for the requested infohash or the test was skipped
 }
 
-func startNode(routers string) (*DHT, error) {
+func startNode(routers string, ih string) (*DHT, error) {
 	c := NewConfig()
 	c.SaveRoutingTable = false
 	c.DHTRouters = routers
@@ -77,10 +78,10 @@ func startNode(routers string) (*DHT, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Remove the buffer
+	node.peersRequest = make(chan ihReq, 0)
 	go node.Run()
-	for node.Port() == 0 {
-		time.Sleep(time.Second)
-	}
+	node.PeersRequest(ih, true)
 	return node, nil
 }
 
@@ -109,35 +110,43 @@ func drainResults(n *DHT, ih string, targetCount int, timeout time.Duration) err
 }
 
 func TestDHTLocal(t *testing.T) {
-	n1, err := startNode("")
+	infoHash, err := DecodeInfoHash("d1c5676ae7ac98e8b19f63565905105e3c4c37a2")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	n1, err := startNode("", string(infoHash))
 	if err != nil {
 		t.Errorf("n1 startNode: %v", err)
 		return
 	}
 
 	router := fmt.Sprintf("localhost:%d", n1.Port())
-	n2, err := startNode(router)
+	n2, err := startNode(router, string(infoHash))
 	if err != nil {
 		t.Errorf("n2 startNode: %v", err)
 		return
 	}
-	n3, err := startNode(router)
+	n3, err := startNode(router, string(infoHash))
 	if err != nil {
 		t.Errorf("n3 startNode: %v", err)
 		return
 	}
-	time.Sleep(10 * time.Second)
-	infoHash, err := DecodeInfoHash("d1c5676ae7ac98e8b19f63565905105e3c4c37a2")
-	if err != nil {
-		t.Fatalf(err.Error())
-	}
 	// n2 and n3 should find each other.
-	if err := drainResults(n2, string(infoHash), 1, 10*time.Second); err != nil {
-		t.Errorf("drainResult n2: %v", err)
-	}
-	if err := drainResults(n3, string(infoHash), 1, 10*time.Second); err != nil {
-		t.Errorf("drainResult n3: %v", err)
-	}
+	wg := new(sync.WaitGroup)
+	wg.Add(2)
+	go func() {
+		if err := drainResults(n2, string(infoHash), 1, 10*time.Second); err != nil {
+			t.Errorf("drainResult n2: %v", err)
+		}
+		wg.Done()
+	}()
+	go func() {
+		if err := drainResults(n3, string(infoHash), 1, 10*time.Second); err != nil {
+			t.Errorf("drainResult n3: %v", err)
+		}
+		wg.Done()
+	}()
+	wg.Wait()
 	n1.Stop()
 	n2.Stop()
 	n3.Stop()
