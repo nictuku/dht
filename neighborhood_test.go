@@ -12,25 +12,28 @@ const (
 
 type test struct {
 	id        string
+	rid       string
 	proximity int
 }
 
 var table = []test{
-	{id, 160},
-	{"01abcdefghij01234566", 159},
-	{"01abcdefghij01234568", 156},
-	{"01abcdefghij01234569", 156},
-	{"01abcdefghij0123456a", 153},
-	{"01abcdefghij0123456b", 153},
-	{"01abcdefghij0123456c", 153},
-	{"01abcdefghij0123456d", 153},
+	{id, id, 160},
+	{id, "01abcdefghij01234566", 159},
+	{id, "01abcdefghij01234568", 156},
+	{id, "01abcdefghij01234569", 156},
+	{id, "01abcdefghij0123456a", 153},
+	{id, "01abcdefghij0123456b", 153},
+	{id, "01abcdefghij0123456c", 153},
+	{id, "01abcdefghij0123456d", 153},
+	// Broken. I also don't know what is the correct number of common bits.
+	// {"43b24884c97bdaa311ce020a2afc82d433f2553d", "dda6bef5317da6487d51b2a160ac349aef9c7cd3", 111},
 }
 
 func TestCommonBits(t *testing.T) {
 	for _, v := range table {
-		c := commonBits(id, v.id)
+		c := commonBits(v.id, v.rid)
 		if c != v.proximity {
-			t.Errorf("test failed for %v, wanted %d got %d", v.id, v.proximity, c)
+			t.Errorf("test failed for %v, wanted %d got %d", v.rid, v.proximity, c)
 		}
 	}
 }
@@ -56,7 +59,7 @@ func TestUpkeep(t *testing.T) {
 	// Adds 7 neighbors from the static table. They should replace the
 	// random ones, except for one.
 	for _, v := range table[1:8] {
-		r.neighborhoodUpkeep(genremoteNode(v.id))
+		r.neighborhoodUpkeep(genremoteNode(v.rid))
 	}
 
 	// Current state: 7 close neighbors, one distant dude.
