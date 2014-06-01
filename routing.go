@@ -40,10 +40,6 @@ import (
 // that uses buckets, but for what is worth, the routing table lookups don't
 // even show on the CPU profiling anymore.
 
-import (
-	"time"
-)
-
 type nTree struct {
 	zero, one *nTree
 	value     *remoteNode
@@ -52,8 +48,6 @@ type nTree struct {
 const (
 	// Each query returns up to this number of nodes.
 	kNodes = 8
-	// Search a node again after some time.
-	searchRetryPeriod = 15 * time.Second
 	// Consider a node stale if it has more than this number of oustanding
 	// queries from us.
 	maxNodePendingQueries = 5

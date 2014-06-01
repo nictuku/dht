@@ -15,6 +15,9 @@ import (
 	"github.com/nictuku/nettools"
 )
 
+// Search a node again after some time.
+var searchRetryPeriod = 15 * time.Second
+
 // Owned by the DHT engine.
 type remoteNode struct {
 	address net.UDPAddr

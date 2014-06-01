@@ -13,6 +13,12 @@ import (
 	"github.com/nictuku/nettools"
 )
 
+func init() {
+	// TestDHTLocal requires contacting the same nodes multiple times, so
+	// shorten the retry period to make tests run faster.
+	searchRetryPeriod = time.Second
+}
+
 // ExampleDHT is a simple example that searches for a particular infohash and
 // exits when it finds any peers. A stand-alone version can be found in the
 // examples/ directory.
