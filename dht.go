@@ -550,7 +550,7 @@ func (d *DHT) processPacket(p packetType) {
 		case "find_node":
 			d.replyFindNode(p.raddr, r)
 		case "announce_peer":
-			d.replyAnnouncePeer(node, r)
+			d.replyAnnouncePeer(p.raddr, node, r)
 		default:
 			log.V(3).Infof("DHT: non-implemented handler for type %v", r.Q)
 		}
@@ -655,15 +655,16 @@ func (d *DHT) checkToken(addr net.UDPAddr, token string) bool {
 	return match
 }
 
-func (d *DHT) replyAnnouncePeer(node *remoteNode, r responseType) {
-	addr := node.address
+func (d *DHT) replyAnnouncePeer(addr net.UDPAddr, node *remoteNode, r responseType) {
 	ih := InfoHash(r.A.InfoHash)
 	if log.V(3) {
 		log.Infof("DHT: announce_peer. Host %v, nodeID: %x, infoHash: %x, peerPort %d, distance to me %x",
 			addr, r.A.Id, ih, r.A.Port, hashDistance(ih, InfoHash(d.nodeId)),
 		)
 	}
-	if d.checkToken(addr, r.A.Token) {
+	// node can be nil if, for example, the server just restarted and received an announce_peer
+	// from a node it doesn't yet know about.
+	if node != nil && d.checkToken(addr, r.A.Token) {
 		peerAddr := net.TCPAddr{IP: addr.IP, Port: r.A.Port}
 		d.peerStore.addContact(ih, nettools.DottedPortToBinary(peerAddr.String()))
 		// Allow searching this node immediately, since it's telling us
