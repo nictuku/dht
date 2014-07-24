@@ -34,9 +34,8 @@ type routingTable struct {
 	proximity int
 }
 
-// hostPortToNode finds or creates a node based on the specified hostPort
-// specification, which should be a UDP address in the form "host:port".
-// Specifying an illegal string is illegal and will generate a panic.
+// hostPortToNode finds a node based on the specified hostPort specification,
+// which should be a UDP address in the form "host:port".
 func (r *routingTable) hostPortToNode(hostPort string) (node *remoteNode, addr string, existed bool, err error) {
 	if hostPort == "" {
 		panic("programming error: hostPortToNode received a nil hostPort")
@@ -46,9 +45,12 @@ func (r *routingTable) hostPortToNode(hostPort string) (node *remoteNode, addr s
 		return nil, "", false, err
 	}
 	if address.String() == "" {
-		panic("programming error: address resolution for hostPortToNode returned an empty string")
+		return nil, "", false, fmt.Errorf("programming error: address resolution for hostPortToNode returned an empty string")
 	}
 	n, existed := r.addresses[address.String()]
+	if existed && n == nil {
+		return nil, "", false, fmt.Errorf("programming error: hostPortToNode found nil node in address table")
+	}
 	return n, address.String(), existed, nil
 }
 
