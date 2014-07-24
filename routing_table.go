@@ -120,8 +120,11 @@ func (r *routingTable) update(node *remoteNode) error {
 // insert the provided node into the routing table. Gives an error if another
 // node already existed with that address.
 func (r *routingTable) insert(node *remoteNode) error {
-	if node.address.Port == 0 || node.address.IP.IsUnspecified() {
-		panic("routingTable.insert() got a node with a nil address")
+	if node.address.Port == 0 {
+		return fmt.Errorf("routingTable.insert() got a node with Port=0")
+	}
+	if node.address.IP.IsUnspecified() {
+		return fmt.Errorf("routingTable.insert() got a node with a non-specified IP address")
 	}
 	_, addr, existed, err := r.hostPortToNode(node.address.String())
 	if err != nil {

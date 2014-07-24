@@ -905,9 +905,11 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 				// Includes the node in the routing table and ignores errors.
 				//
 				// Only continue the search if we really have to.
-				_, err := d.routingTable.getOrCreateNode(id, addr)
-
-				if err == nil && d.needMoreNodes() {
+				if _, err := d.routingTable.getOrCreateNode(id, addr); err != nil {
+					log.Warningf("processFindNodeResults calling getOrCreateNode: %v. Id=%x, Address=%q", err, id, addr)
+					continue
+				}
+				if d.needMoreNodes() {
 					select {
 					case d.nodesRequest <- ihReq{query.ih, false}:
 					default:
