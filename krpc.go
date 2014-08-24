@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	bencode "code.google.com/p/bencode-go"
+	bencode "github.com/jackpal/bencode-go"
 	log "github.com/golang/glog"
 	"github.com/nictuku/nettools"
 )
