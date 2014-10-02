@@ -58,7 +58,7 @@ type queryType struct {
 const (
 	// Once in a while I get a few bigger ones, but meh.
 	maxUDPPacketSize = 4096
-	nodeContactLen   = 32 
+	nodeContactLen   = 38 
 	nodeIdLen        = 20
 )
 
