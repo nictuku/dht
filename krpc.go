@@ -58,7 +58,7 @@ type queryType struct {
 const (
 	// Once in a while I get a few bigger ones, but meh.
 	maxUDPPacketSize = 4096
-	nodeContactLen   = 26
+	nodeContactLen   = 38 
 	nodeIdLen        = 20
 )
 
@@ -202,7 +202,8 @@ type packetType struct {
 
 func listen(addr string, listenPort int) (socket *net.UDPConn, err error) {
 	// debug.Printf("DHT: Listening for peers on port: %d\n", listenPort)
-	listener, err := net.ListenPacket("udp4", addr+":"+strconv.Itoa(listenPort))
+   log.V(3).Infof("DHT: Listening for peers on IP: %s port: %d\n", addr,listenPort)
+	listener, err := net.ListenPacket("udp6", addr+":"+strconv.Itoa(listenPort))
 	if err != nil {
 		// debug.Println("DHT: Listen failed:", err)
 	}
