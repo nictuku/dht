@@ -12,7 +12,7 @@ import (
 
 	bencode "github.com/jackpal/bencode-go"
 	log "github.com/golang/glog"
-	"github.com/nictuku/nettools"
+	"github.com/spikebike/nettools"
 )
 
 // Search a node again after some time.

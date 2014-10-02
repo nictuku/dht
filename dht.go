@@ -39,7 +39,7 @@ import (
 	"time"
 
 	log "github.com/golang/glog"
-	"github.com/nictuku/nettools"
+	"github.com/spikebike/nettools"
 )
 
 // ===== Logging behavior =====
