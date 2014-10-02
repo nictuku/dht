@@ -74,7 +74,6 @@ func parseNodesString(nodes string) (parsed map[string]string) {
 	if len(nodes)%nodeContactLen > 0 {
 		log.V(3).Infof("DHT: Invalid length of nodes.")
 		log.V(3).Infof("DHT: Should be a multiple of %d, got %d", nodeContactLen, len(nodes))
-		return
 	}
 	for i := 0; i < len(nodes); i += nodeContactLen {
 		id := nodes[i : i+nodeIdLen]
