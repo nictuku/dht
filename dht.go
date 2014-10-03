@@ -489,7 +489,7 @@ func (d *DHT) processPacket(p packetType) {
 		// Fix the node ID.
 		if node.id == "" {
 			node.id = r.R.Id
-			d.routingTable.update(node)
+			d.routingTable.update(node,d.config.UDPProto)
 		}
 		if node.id != r.R.Id {
 			log.V(3).Infof("DHT: Node changed IDs %x => %x", node.id, r.R.Id)
