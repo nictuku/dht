@@ -84,6 +84,8 @@ type Config struct {
 	// MaxInfoHashPeers is the limit of number of peers to be tracked for each infohash. A
 	// single peer contact typically consumes 6 bytes. Default value: 256.
 	MaxInfoHashPeers int
+	//Protocol for UDP connections, udp4= IPv4, udp6 = IPv6
+	UDPProto string
 }
 
 // Creates a *Config populated with default values.
@@ -100,6 +102,7 @@ func NewConfig() *Config {
 		RateLimit:        100,
 		MaxInfoHashes:    2048,
 		MaxInfoHashPeers: 256,
+		UDPProto:         "udp6",
 	}
 }
 
@@ -277,7 +280,7 @@ func (d *DHT) findNode(id string) {
 // listens for incoming DHT requests.
 func (d *DHT) Run() error {
 	socketChan := make(chan packetType)
-	socket, err := listen(d.config.Address, d.config.Port)
+	socket, err := listen(d.config.Address, d.config.Port,d.config.UDPProto)
 	if err != nil {
 		return err
 	}
@@ -426,7 +429,7 @@ func (d *DHT) helloFromPeer(addr string) {
 	// - see if we know it already, skip accordingly.
 	// - ping it and see if it's reachable.
 	// - if it responds, save it in the routing table.
-	_, addrResolved, existed, err := d.routingTable.hostPortToNode(addr)
+	_, addrResolved, existed, err := d.routingTable.hostPortToNode(addr,d.config.UDPProto)
 	if err != nil {
 		log.Warningf("helloFromPeer error: %v", err)
 		return
@@ -471,7 +474,7 @@ func (d *DHT) processPacket(p packetType) {
 			log.V(3).Infof("DHT received reply from self, id %x", r.A.Id)
 			return
 		}
-		node, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String())
+		node, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String(),d.config.UDPProto)
 		if err != nil {
 			log.V(3).Infof("DHT readResponse error processing response: %v", err)
 			return
@@ -530,7 +533,7 @@ func (d *DHT) processPacket(p packetType) {
 			log.V(3).Infof("DHT received packet from self, id %x", r.A.Id)
 			return
 		}
-		node, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String())
+		node, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String(),d.config.UDPProto)
 		if err != nil {
 			log.Warningf("Error readResponse error processing query: %v", err)
 			return
@@ -560,7 +563,7 @@ func (d *DHT) processPacket(p packetType) {
 }
 
 func (d *DHT) ping(address string) {
-	r, err := d.routingTable.getOrCreateNode("", address)
+	r, err := d.routingTable.getOrCreateNode("", address,d.config.UDPProto)
 	if err != nil {
 		log.V(3).Infof("ping error for address %v: %v", address, err)
 		return
@@ -618,7 +621,7 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 // our node is a peer for this infohash, using the provided token to
 // 'authenticate'.
 func (d *DHT) announcePeer(address net.UDPAddr, ih InfoHash, token string) {
-	r, err := d.routingTable.getOrCreateNode("", address.String())
+	r, err := d.routingTable.getOrCreateNode("", address.String(),d.config.UDPProto)
 	if err != nil {
 		log.V(3).Infof("announcePeer error: %v", err)
 		return
@@ -810,7 +813,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 			}
 
 			// If it's in our routing table already, ignore it.
-			_, addr, existed, err := d.routingTable.hostPortToNode(address)
+			_, addr, existed, err := d.routingTable.hostPortToNode(address,d.config.UDPProto)
 			if err != nil {
 				log.V(3).Infof("DHT error parsing get peers node: %v", err)
 				continue
@@ -837,7 +840,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 					log.Infof("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.",
 						id, address, node.id, node.address, x)
 				}
-				_, err := d.routingTable.getOrCreateNode(id, addr)
+				_, err := d.routingTable.getOrCreateNode(id, addr, d.config.UDPProto)
 				if err == nil && d.peerStore.count(query.ih) < d.config.NumTargetPeers {
 					// Re-add this request to the queue. This would in theory
 					// batch similar requests, because new nodes are already
@@ -875,7 +878,7 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 
 	if resp.R.Nodes != "" {
 		for id, address := range parseNodesString(resp.R.Nodes) {
-			_, addr, existed, err := d.routingTable.hostPortToNode(address)
+			_, addr, existed, err := d.routingTable.hostPortToNode(address,d.config.UDPProto)
 			if err != nil {
 				log.V(3).Infof("DHT error parsing node from find_find response: %v", err)
 				continue
@@ -906,7 +909,7 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 				// Includes the node in the routing table and ignores errors.
 				//
 				// Only continue the search if we really have to.
-				if _, err := d.routingTable.getOrCreateNode(id, addr); err != nil {
+				if _, err := d.routingTable.getOrCreateNode(id, addr,d.config.UDPProto); err != nil {
 					log.Warningf("processFindNodeResults calling getOrCreateNode: %v. Id=%x, Address=%q", err, id, addr)
 					continue
 				}
