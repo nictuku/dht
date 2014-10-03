@@ -36,7 +36,7 @@ type routingTable struct {
 
 // hostPortToNode finds a node based on the specified hostPort specification,
 // which should be a UDP address in the form "host:port".
-func (r *routingTable) hostPortToNode(hostPort string, port string) (node *remoteNode, addr string, existed bool, err error) {
+func (r *routingTable) hostPortToNode(hostPort string,port string) (node *remoteNode, addr string, existed bool, err error) {
 	if hostPort == "" {
 		panic("programming error: hostPortToNode received a nil hostPort")
 	}
@@ -99,7 +99,7 @@ func isValidAddr(addr string) bool {
 // update the existing routingTable entry for this node by setting its correct
 // infohash id. Gives an error if the node was not found.
 func (r *routingTable) update(node *remoteNode, proto string) error {
-	_, addr, existed, err := r.hostPortToNode(node.address.String(), proto)
+	_, addr, existed, err := r.hostPortToNode(node.address.String(),proto)
 	if err != nil {
 		return err
 	}
@@ -119,14 +119,14 @@ func (r *routingTable) update(node *remoteNode, proto string) error {
 
 // insert the provided node into the routing table. Gives an error if another
 // node already existed with that address.
-func (r *routingTable) insert(node *remoteNode, proto string) error {
+func (r *routingTable) insert(node *remoteNode,proto string) error {
 	if node.address.Port == 0 {
 		return fmt.Errorf("routingTable.insert() got a node with Port=0")
 	}
 	if node.address.IP.IsUnspecified() {
 		return fmt.Errorf("routingTable.insert() got a node with a non-specified IP address")
 	}
-	_, addr, existed, err := r.hostPortToNode(node.address.String(), proto)
+	_, addr, existed, err := r.hostPortToNode(node.address.String(),proto)
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func (r *routingTable) insert(node *remoteNode, proto string) error {
 // that is already in the routing table, but create a new one otherwise, thus
 // being idempotent.
 func (r *routingTable) getOrCreateNode(id string, hostPort string, proto string) (node *remoteNode, err error) {
-	node, addr, existed, err := r.hostPortToNode(hostPort, proto)
+	node, addr, existed, err := r.hostPortToNode(hostPort,proto)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +164,7 @@ func (r *routingTable) getOrCreateNode(id string, hostPort string, proto string)
 		return nil, err
 	}
 	node = newRemoteNode(*udpAddr, id)
-	return node, r.insert(node, proto)
+	return node, r.insert(node,proto)
 }
 
 func (r *routingTable) kill(n *remoteNode) {
@@ -263,7 +263,7 @@ func (r *routingTable) neighborhoodUpkeep(n *remoteNode, proto string) {
 }
 
 func (r *routingTable) addNewNeighbor(n *remoteNode, displaceBoundary bool, proto string) {
-	if err := r.insert(n, proto); err != nil {
+	if err := r.insert(n,proto); err != nil {
 		log.V(3).Infof("addNewNeighbor error: %v", err)
 		return
 	}
