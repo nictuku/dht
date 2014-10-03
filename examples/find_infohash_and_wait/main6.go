@@ -20,7 +20,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/nictuku/dht"
+	"github.com/spikebike/dht"
 )
 
 const (
@@ -35,11 +35,17 @@ func main() {
 	conf.Address = "[2607:f810:c20:1d:ca60:ff:fec8:76df]"
 // shell
 // conf.Address = "[2607:f810:c20:1c:a800:ff:fe23:f52f]"
+// left
+// conf.Address = "[2601:c:a200:1248:76d0:2bff:fe90:8b90]"
 
 //	conf.Address = "128.120.246.131"
 	conf.Port = 8445;
-//	conf.DHTRouters = "[2001:41d0:1:aa81:2::1]:8661,[2601:0:8600:94d:78a2:a8da:11d7:5df4]:49438,[2002:6e16:48be:e472:290:a9ff:fe36:a203]:51413,[2a02:1810:b00f:b400:211:32ff:fe0e:46d5]:6881,[2001:41d0:1:dad1::1]:51413,[2600:3c03::f03c:91ff:fedb:19ed]:51413,[2001:41d0:2:1221::1]:59020,[2001:41d0:8:e2d6::1]:51413,[2607:f810:c20:1c:a800:ff:fe23:f52f]:8444"
-	conf.DHTRouters = "[2607:f810:c20:1c:a800:ff:fe23:f52f]:8445"
+	// IPv6
+	conf.DHTRouters = "[2001:41d0:1:aa81:2::1]:6881,[2601:0:8600:94d:78a2:a8da:11d7:5df4]:49438,[2002:6e16:48be:e472:290:a9ff:fe36:a203]:51413,[2a02:1810:b00f:b400:211:32ff:fe0e:46d5]:6881,[2001:41d0:1:dad1::1]:51413,[2600:3c03::f03c:91ff:fedb:19ed]:51413,[2001:41d0:2:1221::1]:59020,[2001:41d0:8:e2d6::1]:51413,[2607:f810:c20:1c:a800:ff:fe23:f52f]:8445,[2601:c:a200:1248:76d0:2bff:fe90:8b90]:8445"
+	conf.UdpProto = "udp6"
+//	conf.DHTRouters = "[2607:f810:c20:1c:a800:ff:fe23:f52f]:8445"
+	// ipv4
+//	conf.DHTRouters = "91.121.60.42:6881,212.129.33.50:6881,82.221.103.244:6881,67.215.246.10:6881"
 
 
 	flag.Parse()

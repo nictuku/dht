@@ -40,7 +40,7 @@ func (r *routingTable) hostPortToNode(hostPort string) (node *remoteNode, addr s
 	if hostPort == "" {
 		panic("programming error: hostPortToNode received a nil hostPort")
 	}
-	address, err := net.ResolveUDPAddr("udp", hostPort)
+	address, err := net.ResolveUDPAddr("udp6", hostPort)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -159,7 +159,7 @@ func (r *routingTable) getOrCreateNode(id string, hostPort string) (node *remote
 	if existed {
 		return node, nil
 	}
-	udpAddr, err := net.ResolveUDPAddr("udp", addr)
+	udpAddr, err := net.ResolveUDPAddr("udp6", addr)
 	if err != nil {
 		return nil, err
 	}
