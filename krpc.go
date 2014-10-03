@@ -86,7 +86,7 @@ func parseNodesString(nodes string,proto string) (parsed map[string]string) {
 		log.V(5).Infof("%T %#v\n",nodes,nodes)
 		return
 	} else {
-		log.V(5).Infof("NodeString had %d nodes\n",len(nodes)/nodeContactLen)
+		log.V(5).Infof("NodeString had %d nodes, nodeContactLen=%d\n",len(nodes)/nodeContactLen,nodeContactLen)
 	}
 	for i := 0; i < len(nodes); i += nodeContactLen {
 		id := nodes[i : i+nodeIdLen]
