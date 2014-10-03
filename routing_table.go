@@ -36,11 +36,11 @@ type routingTable struct {
 
 // hostPortToNode finds a node based on the specified hostPort specification,
 // which should be a UDP address in the form "host:port".
-func (r *routingTable) hostPortToNode(hostPort string) (node *remoteNode, addr string, existed bool, err error) {
+func (r *routingTable) hostPortToNode(hostPort string,port string) (node *remoteNode, addr string, existed bool, err error) {
 	if hostPort == "" {
 		panic("programming error: hostPortToNode received a nil hostPort")
 	}
-	address, err := net.ResolveUDPAddr("udp6", hostPort)
+	address, err := net.ResolveUDPAddr(port, hostPort)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -98,8 +98,8 @@ func isValidAddr(addr string) bool {
 
 // update the existing routingTable entry for this node by setting its correct
 // infohash id. Gives an error if the node was not found.
-func (r *routingTable) update(node *remoteNode) error {
-	_, addr, existed, err := r.hostPortToNode(node.address.String())
+func (r *routingTable) update(node *remoteNode, proto string) error {
+	_, addr, existed, err := r.hostPortToNode(node.address.String(),proto)
 	if err != nil {
 		return err
 	}
@@ -119,14 +119,14 @@ func (r *routingTable) update(node *remoteNode) error {
 
 // insert the provided node into the routing table. Gives an error if another
 // node already existed with that address.
-func (r *routingTable) insert(node *remoteNode) error {
+func (r *routingTable) insert(node *remoteNode,proto string) error {
 	if node.address.Port == 0 {
 		return fmt.Errorf("routingTable.insert() got a node with Port=0")
 	}
 	if node.address.IP.IsUnspecified() {
 		return fmt.Errorf("routingTable.insert() got a node with a non-specified IP address")
 	}
-	_, addr, existed, err := r.hostPortToNode(node.address.String())
+	_, addr, existed, err := r.hostPortToNode(node.address.String(),proto)
 	if err != nil {
 		return err
 	}
@@ -151,15 +151,15 @@ func (r *routingTable) insert(node *remoteNode) error {
 // Host:port, which will be resolved if possible.  Preferably return an entry
 // that is already in the routing table, but create a new one otherwise, thus
 // being idempotent.
-func (r *routingTable) getOrCreateNode(id string, hostPort string) (node *remoteNode, err error) {
-	node, addr, existed, err := r.hostPortToNode(hostPort)
+func (r *routingTable) getOrCreateNode(id string, hostPort string, port string,proto string) (node *remoteNode, err error) {
+	node, addr, existed, err := r.hostPortToNode(hostPort,proto)
 	if err != nil {
 		return nil, err
 	}
 	if existed {
 		return node, nil
 	}
-	udpAddr, err := net.ResolveUDPAddr("udp6", addr)
+	udpAddr, err := net.ResolveUDPAddr(port, addr)
 	if err != nil {
 		return nil, err
 	}
