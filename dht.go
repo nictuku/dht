@@ -803,7 +803,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 		}
 	}
 	if resp.R.Nodes != "" {
-		for id, address := range parseNodesString(resp.R.Nodes) {
+		for id, address := range parseNodesString(resp.R.Nodes,d.config.UDPProto) {
 			if id == d.nodeId {
 				log.V(5).Infof("DHT got reference of self for get_peers, id %x", id)
 				continue
@@ -877,7 +877,7 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 	query, _ := node.pendingQueries[resp.T]
 
 	if resp.R.Nodes != "" {
-		for id, address := range parseNodesString(resp.R.Nodes) {
+		for id, address := range parseNodesString(resp.R.Nodes,d.config.UDPProto) {
 			_, addr, existed, err := d.routingTable.hostPortToNode(address,d.config.UDPProto)
 			if err != nil {
 				log.V(3).Infof("DHT error parsing node from find_find response: %v", err)

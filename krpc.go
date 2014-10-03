@@ -58,7 +58,8 @@ type queryType struct {
 const (
 	// Once in a while I get a few bigger ones, but meh.
 	maxUDPPacketSize = 4096
-	nodeContactLen   = 38 
+	v4nodeContactLen   = 26
+	v6nodeContactLen   = 38 
 	nodeIdLen        = 20
 )
 
@@ -69,7 +70,15 @@ var (
 )
 
 // The 'nodes' response is a string with fixed length contacts concatenated arbitrarily.
-func parseNodesString(nodes string) (parsed map[string]string) {
+func parseNodesString(nodes string,proto string) (parsed map[string]string) {
+	var nodeContactLen int	
+	if proto == "udp4" {
+		nodeContactLen=v4nodeContactLen
+	} else if proto == "udp6" {
+		nodeContactLen=v6nodeContactLen
+	} else {
+		return
+	}
 	parsed = make(map[string]string)
 	if len(nodes)%nodeContactLen > 0 {
 		log.V(3).Infof("DHT: Invalid length of nodes.")
