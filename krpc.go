@@ -83,6 +83,7 @@ func parseNodesString(nodes string,proto string) (parsed map[string]string) {
 	if len(nodes)%nodeContactLen > 0 {
 		log.V(3).Infof("DHT: Invalid length of nodes.")
 		log.V(3).Infof("DHT: Should be a multiple of %d, got %d", nodeContactLen, len(nodes))
+		fmt.Printf("%T %#v\n",nodes,nodes)
 		return
 	}
 	for i := 0; i < len(nodes); i += nodeContactLen {
@@ -209,10 +210,10 @@ type packetType struct {
 	raddr net.UDPAddr
 }
 
-func listen(addr string, listenPort int, port string) (socket *net.UDPConn, err error) {
+func listen(addr string, listenPort int, proto string) (socket *net.UDPConn, err error) {
 	// debug.Printf("DHT: Listening for peers on port: %d\n", listenPort)
-   log.V(3).Infof("DHT: Listening for peers on IP: %s port: %d\n", addr,listenPort)
-	listener, err := net.ListenPacket(port, addr+":"+strconv.Itoa(listenPort))
+   log.V(3).Infof("DHT: Listening for peers on IP: %s port: %d Protocol=%s\n", addr,listenPort,proto)
+	listener, err := net.ListenPacket(proto, addr+":"+strconv.Itoa(listenPort))
 	if err != nil {
 		// debug.Println("DHT: Listen failed:", err)
 	}
