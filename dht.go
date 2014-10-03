@@ -502,7 +502,7 @@ func (d *DHT) processPacket(p packetType) {
 			}
 			node.lastResponseTime = time.Now()
 			node.pastQueries[r.T] = query
-			d.routingTable.neighborhoodUpkeep(node)
+			d.routingTable.neighborhoodUpkeep(node, d.config.UDPProto)
 
 			// If this is the first host added to the routing table, attempt a
 			// recursive lookup of our own address, to build our neighborhood ASAP.

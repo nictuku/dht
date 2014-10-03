@@ -151,7 +151,7 @@ func (r *routingTable) insert(node *remoteNode,proto string) error {
 // Host:port, which will be resolved if possible.  Preferably return an entry
 // that is already in the routing table, but create a new one otherwise, thus
 // being idempotent.
-func (r *routingTable) getOrCreateNode(id string, hostPort string, port string,proto string) (node *remoteNode, err error) {
+func (r *routingTable) getOrCreateNode(id string, hostPort string, proto string) (node *remoteNode, err error) {
 	node, addr, existed, err := r.hostPortToNode(hostPort,proto)
 	if err != nil {
 		return nil, err
@@ -159,12 +159,12 @@ func (r *routingTable) getOrCreateNode(id string, hostPort string, port string,p
 	if existed {
 		return node, nil
 	}
-	udpAddr, err := net.ResolveUDPAddr(port, addr)
+	udpAddr, err := net.ResolveUDPAddr(proto, addr)
 	if err != nil {
 		return nil, err
 	}
 	node = newRemoteNode(*udpAddr, id)
-	return node, r.insert(node)
+	return node, r.insert(node,proto)
 }
 
 func (r *routingTable) kill(n *remoteNode) {
@@ -242,13 +242,13 @@ func (r *routingTable) cleanup(cleanupPeriod time.Duration) (needPing []*remoteN
 // neighborhoodUpkeep will update the routingtable if the node n is closer than
 // the 8 nodes in our neighborhood, by replacing the least close one
 // (boundary). n.id is assumed to have length 20.
-func (r *routingTable) neighborhoodUpkeep(n *remoteNode) {
+func (r *routingTable) neighborhoodUpkeep(n *remoteNode, proto string) {
 	if r.boundaryNode == nil {
-		r.addNewNeighbor(n, false)
+		r.addNewNeighbor(n, false, proto)
 		return
 	}
 	if r.length() < kNodes {
-		r.addNewNeighbor(n, false)
+		r.addNewNeighbor(n, false, proto)
 		return
 	}
 	cmp := commonBits(r.nodeId, n.id)
@@ -257,13 +257,13 @@ func (r *routingTable) neighborhoodUpkeep(n *remoteNode) {
 		return
 	}
 	if cmp > r.proximity {
-		r.addNewNeighbor(n, true)
+		r.addNewNeighbor(n, true, proto)
 		return
 	}
 }
 
-func (r *routingTable) addNewNeighbor(n *remoteNode, displaceBoundary bool) {
-	if err := r.insert(n); err != nil {
+func (r *routingTable) addNewNeighbor(n *remoteNode, displaceBoundary bool, proto string) {
+	if err := r.insert(n,proto); err != nil {
 		log.V(3).Infof("addNewNeighbor error: %v", err)
 		return
 	}
