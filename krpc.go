@@ -59,7 +59,7 @@ const (
 	// Once in a while I get a few bigger ones, but meh.
 	maxUDPPacketSize = 4096
 	v4nodeContactLen   = 26
-	v6nodeContactLen   = 26 
+	v6nodeContactLen   = 26  // some clients seem to send multiples of 38
 	nodeIdLen        = 20
 )
 
@@ -86,7 +86,7 @@ func parseNodesString(nodes string,proto string) (parsed map[string]string) {
 		log.V(5).Infof("%T %#v\n",nodes,nodes)
 		return
 	} else {
-		log.V(5).Infof("NodeString had %d nodes, nodeContactLen=%d\n",len(nodes)/nodeContactLen,nodeContactLen)
+		log.V(5).Infof("NodeString = %d, had %d nodes, nodeContactLen=%d\n",len(nodes),len(nodes)/nodeContactLen,nodeContactLen)
 	}
 	for i := 0; i < len(nodes); i += nodeContactLen {
 		id := nodes[i : i+nodeIdLen]
