@@ -59,7 +59,7 @@ const (
 	// Once in a while I get a few bigger ones, but meh.
 	maxUDPPacketSize = 4096
 	v4nodeContactLen   = 26
-	v6nodeContactLen   = 26  // some clients seem to send multiples of 38
+	v6nodeContactLen   = 38  // some clients seem to send multiples of 38
 	nodeIdLen        = 20
 )
 

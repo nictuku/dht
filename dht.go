@@ -92,9 +92,9 @@ type Config struct {
 func NewConfig() *Config {
 	return &Config{
 		Address:          "",
-		Port:             0, // Picks a random port.
+		Port:             8444, // Picks a random port.
 		NumTargetPeers:   5,
-		DHTRouters:       "de.magnets.im:6881,cz.magnets.im:6881,router.bittorrent.com:6881,dht.transmissionbt.com:6881",
+		DHTRouters:       "[2001:41d0:1:aa81:2::1]:6881",
 		MaxNodes:         500,
 		CleanupPeriod:    15 * time.Minute,
 		SaveRoutingTable: true,
