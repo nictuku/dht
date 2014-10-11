@@ -137,6 +137,7 @@ type getPeersResponse struct {
 	Values []string "values"
 	Id     string   "id"
 	Nodes  string   "nodes"
+	Nodes6  string   "nodes6"
 	Token  string   "token"
 }
 

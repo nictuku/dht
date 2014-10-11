@@ -786,7 +786,7 @@ func (d *DHT) replyPing(addr net.UDPAddr, response responseType) {
 // unless we are in supernode mode.
 func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 	totalRecvGetPeersReply.Add(1)
-	log.V(5).Infof("DHT: handling get_peers results len(resp.R.Nodes)=%d",len(resp.R.Nodes))
+	log.V(5).Infof("DHT: handling get_peers results len(resp.R.Nodes6)=%d",len(resp.R.Nodes6))
 
 	query, _ := node.pendingQueries[resp.T]
 	if d.peerStore.hasLocalDownload(query.ih) {
@@ -807,8 +807,8 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 			d.PeersRequestResults <- result
 		}
 	}
-	if resp.R.Nodes != "" {
-		for id, address := range parseNodesString(resp.R.Nodes,d.config.UDPProto) {
+	if resp.R.Nodes6 != "" {
+		for id, address := range parseNodesString(resp.R.Nodes6,d.config.UDPProto) {
 			if id == d.nodeId {
 				log.V(5).Infof("DHT got reference of self for get_peers, id %x", id)
 				continue
@@ -880,11 +880,11 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 	totalRecvFindNodeReply.Add(1)
 
 	query, _ := node.pendingQueries[resp.T]
-   log.V(5).Infof("processFindNodeResults find_node = %s len(resp.R.Nodes)=%d",nettools.BinaryToDottedPort(node.addressBinaryFormat),len(resp.R.Nodes))
+   log.V(5).Infof("processFindNodeResults find_node = %s len(resp.R.Nodes6)=%d",nettools.BinaryToDottedPort(node.addressBinaryFormat),len(resp.R.Nodes6))
    //log.V(5).Infof("processFindNodeResults resp.R=%v %T",resp.R,resp.R)
    //log.V(5).Infof("processFindNodeResults resp  =%v %T",resp,resp)
-	if resp.R.Nodes != "" {
-		for id, address := range parseNodesString(resp.R.Nodes,d.config.UDPProto) {
+	if resp.R.Nodes6 != "" {
+		for id, address := range parseNodesString(resp.R.Nodes6,d.config.UDPProto) {
 			_, addr, existed, err := d.routingTable.hostPortToNode(address,d.config.UDPProto)
 			if err != nil {
 				log.V(3).Infof("DHT error parsing node from find_find response: %v", err)
