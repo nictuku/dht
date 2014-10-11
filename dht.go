@@ -507,6 +507,7 @@ func (d *DHT) processPacket(p packetType) {
 			// If this is the first host added to the routing table, attempt a
 			// recursive lookup of our own address, to build our neighborhood ASAP.
 			if d.needMoreNodes() {
+				log.V(5).Infof("DHT: need more nodes")
 				d.findNode(d.nodeId)
 			}
 			d.exploredNeighborhood = true
@@ -516,8 +517,10 @@ func (d *DHT) processPacket(p packetType) {
 				// Served its purpose, nothing else to be done.
 				totalRecvPingReply.Add(1)
 			case "get_peers":
+				log.V(5).Infof("DHT: got get_peers response")
 				d.processGetPeerResults(node, r)
 			case "find_node":
+				log.V(5).Infof("DHT: got find_node response")
 				d.processFindNodeResults(node, r)
 			case "announce_peer":
 				// Nothing to do. In the future, update counters.
@@ -783,6 +786,8 @@ func (d *DHT) replyPing(addr net.UDPAddr, response responseType) {
 // unless we are in supernode mode.
 func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 	totalRecvGetPeersReply.Add(1)
+	log.V(5).Infof("DHT: handling get_peers results len(resp.R.Nodes)=%d",len(resp.R.Nodes))
+
 	query, _ := node.pendingQueries[resp.T]
 	if d.peerStore.hasLocalDownload(query.ih) {
 		d.announcePeer(node.address, query.ih, resp.R.Token)
@@ -875,7 +880,9 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 	totalRecvFindNodeReply.Add(1)
 
 	query, _ := node.pendingQueries[resp.T]
-
+   log.V(5).Infof("processFindNodeResults find_node = %s len(resp.R.Nodes)=%d",nettools.BinaryToDottedPort(node.addressBinaryFormat),len(resp.R.Nodes))
+   //log.V(5).Infof("processFindNodeResults resp.R=%v %T",resp.R,resp.R)
+   //log.V(5).Infof("processFindNodeResults resp  =%v %T",resp,resp)
 	if resp.R.Nodes != "" {
 		for id, address := range parseNodesString(resp.R.Nodes,d.config.UDPProto) {
 			_, addr, existed, err := d.routingTable.hostPortToNode(address,d.config.UDPProto)

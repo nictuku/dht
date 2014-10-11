@@ -81,12 +81,12 @@ func parseNodesString(nodes string,proto string) (parsed map[string]string) {
 	}
 	parsed = make(map[string]string)
 	if len(nodes)%nodeContactLen > 0 {
-		log.V(3).Infof("DHT: Invalid length of nodes.")
-		log.V(3).Infof("DHT: Should be a multiple of %d, got len(nodes)=%d", nodeContactLen, len(nodes))
+		log.V(3).Infof("DHT: len(NodeString) = %d, INVALID LENGTH, should be a multiple of %d", len(nodes),nodeContactLen)
 		log.V(5).Infof("%T %#v\n",nodes,nodes)
 		return
 	} else {
-		log.V(5).Infof("NodeString = %d, had %d nodes, nodeContactLen=%d\n",len(nodes),len(nodes)/nodeContactLen,nodeContactLen)
+		log.V(5).Infof("DHT: len(NodeString) = %d, had %d nodes, nodeContactLen=%d\n",len(nodes),len(nodes)/nodeContactLen,nodeContactLen)
+		log.V(5).Infof("%T %#v\n",nodes,nodes)
 	}
 	for i := 0; i < len(nodes); i += nodeContactLen {
 		id := nodes[i : i+nodeIdLen]
@@ -168,7 +168,7 @@ func sendMsg(conn *net.UDPConn, raddr net.UDPAddr, query interface{}) {
 		return
 	}
 	if n, err := conn.WriteToUDP(b.Bytes(), &raddr); err != nil {
-		log.V(3).Infof("DHT: node write failed:", err)
+		log.V(3).Infof("DHT: node write failed to %+v, error=%s", raddr, err)
 	} else {
 		totalWrittenBytes.Add(int64(n))
 	}

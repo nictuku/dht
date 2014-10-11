@@ -7,6 +7,8 @@ import (
 	"time"
 
 	log "github.com/golang/glog"
+	"github.com/spikebike/nettools"
+
 )
 
 func newRoutingTable() *routingTable {
@@ -273,7 +275,7 @@ func (r *routingTable) addNewNeighbor(n *remoteNode, displaceBoundary bool, prot
 	} else {
 		r.resetNeighborhoodBoundary()
 	}
-	log.V(4).Infof("New neighbor added to neighborhood with proximity %d", r.proximity)
+	log.V(4).Infof("New neighbor added %s with proximity %d", nettools.BinaryToDottedPort(n.addressBinaryFormat),r.proximity)
 }
 
 // pingSlowly pings the remote nodes in needPing, distributing the pings

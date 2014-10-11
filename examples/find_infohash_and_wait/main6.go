@@ -31,23 +31,20 @@ const (
 
 func main() {
 	conf := dht.NewConfig()
-// kona
-//	conf.Address = "[2607:f810:c20:1d:ca60:ff:fec8:76df]"
-// shell
-// conf.Address = "[2607:f810:c20:1c:a800:ff:fe23:f52f]"
-// left
-   conf.Address = "[2601:c:a200:1248:76d0:2bff:fe90:8b90]"
-
-//	conf.Address = "128.120.246.131"
-	conf.Port = 8444;
-	// IPv6
-	conf.DHTRouters = "[2001:41d0:1:aa81:2::1]:6881,[2601:0:8600:94d:78a2:a8da:11d7:5df4]:49438,[2002:6e16:48be:e472:290:a9ff:fe36:a203]:51413,[2a02:1810:b00f:b400:211:32ff:fe0e:46d5]:6881,[2001:41d0:1:dad1::1]:51413,[2600:3c03::f03c:91ff:fedb:19ed]:51413,[2001:41d0:2:1221::1]:59020,[2001:41d0:8:e2d6::1]:51413,[2607:f810:c20:1c:a800:ff:fe23:f52f]:8445,[2601:c:a200:1248:76d0:2bff:fe90:8b90]:8445"
 	conf.UDPProto = "udp6"
-// right
-	conf.DHTRouters = "[2601:c:a200:1248:f66d:4ff:fe18:69d2]:8444"
-	// ipv4
-//	conf.DHTRouters = "91.121.60.42:6881,212.129.33.50:6881,82.221.103.244:6881,67.215.246.10:6881"
+	conf.Port = 8444;
 
+	if  conf.UDPProto == "udp6" {
+		//left 
+		conf.Address = "[2601:c:a200:1228:76d0:2bff:fe90:8b90]"
+		conf.DHTRouters = "[2001:41d0:1:aa81:2::1]:6881,[2607:f810:c20:1c:a800:ff:fe23:f52f]:8445"
+	}
+	if conf.UDPProto == "udp4" {
+		conf.Address = ""
+		// standard IPv4 bootstrap nodes = dht.transmissionbt.com 
+		// router.utorrent.com router.bittorrent.com
+		conf.DHTRouters = "212.129.33.50:6881,91.121.60.42:6881,82.221.103.244:6881,67.215.246.10:6881"
+	}
 
 	flag.Parse()
 	// To see logs, use the -logtostderr flag and change the verbosity with
