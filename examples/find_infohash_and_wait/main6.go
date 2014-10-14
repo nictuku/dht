@@ -30,22 +30,7 @@ const (
 )
 
 func main() {
-	conf := dht.NewConfig()
-	conf.UDPProto = "udp6"
-	conf.Port = 8444;
-
-	if  conf.UDPProto == "udp6" {
-		//left 
-		conf.Address = "[2601:c:a200:1228:76d0:2bff:fe90:8b90]"
-		conf.DHTRouters = "[2001:41d0:1:aa81:2::1]:6881,[2607:f810:c20:1c:a800:ff:fe23:f52f]:8445"
-	}
-	if conf.UDPProto == "udp4" {
-		conf.Address = ""
-		// standard IPv4 bootstrap nodes = dht.transmissionbt.com 
-		// router.utorrent.com router.bittorrent.com
-		conf.DHTRouters = "212.129.33.50:6881,91.121.60.42:6881,82.221.103.244:6881,67.215.246.10:6881"
-	}
-
+	ipv6Address := flag.String("v6", "", "Address to bind to IPv6 interface")
 	flag.Parse()
 	// To see logs, use the -logtostderr flag and change the verbosity with
 	// -v 0 (less verbose) up to -v 5 (more verbose).
@@ -60,21 +45,51 @@ func main() {
 		fmt.Fprintf(os.Stderr, "DecodeInfoHash error: %v\n", err)
 		os.Exit(1)
 	}
+
+	conf4 := dht.NewConfig()
+	conf4.UDPProto = "udp4"
+	conf4.Port = 8445
+	conf4.Address = ""
+	// standard IPv4 bootstrap nodes = dht.transmissionbt.com
+	// router.utorrent.com router.bittorrent.com
+	conf4.DHTRouters = "212.129.33.50:6881,91.121.60.42:6881,82.221.103.244:6881,67.215.246.10:6881"
+	conf6 := dht.NewConfig()
+	conf6.UDPProto = "udp6"
+	conf6.Port = 8445
+	conf6.Address = *ipv6Address
+	conf6.DHTRouters = "[2001:41d0:1:aa81:2::1]:6881"
 	// Starts a DHT node with the default options. It picks a random UDP port. To change this, see dht.NewConfig.
-	d, err := dht.New(conf)
+	d4, err := dht.New(conf4)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "New DHT error: %v", err)
 		os.Exit(1)
-
 	}
+	var d6 *dht.DHT
+	if len(*ipv6Address)>1 {
+		fmt.Printf("Tring to bind to IPv6=%s\n", *ipv6Address)
+		d6, err = dht.New(conf6)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "New DHT error: %v", err)
+			os.Exit(1)
+		}
+		go d6.Run()
+		go drainresults(d6)
+	} else {
+		fmt.Fprintf(os.Stderr,"Not binding to IPv6 interface.  If desired pass -v6=[address] for the\n")
+		fmt.Fprintf(os.Stderr,"address you want the DHT to bind to.  Privacy addresses are not recommended\n")
+		fmt.Fprintf(os.Stderr,"Since they can expire and connections will fail\n\n")
+	}
+
 	// For debugging.
 	go http.ListenAndServe(fmt.Sprintf(":%d", httpPortTCP), nil)
 
-	go d.Run()
-	go drainresults(d)
-
+	go d4.Run()
+	go drainresults(d4)
 	for {
-		d.PeersRequest(string(ih), true)
+		d4.PeersRequest(string(ih), true)
+		if len(*ipv6Address)>1 {
+			d6.PeersRequest(string(ih), true)
+		}
 		time.Sleep(5 * time.Second)
 	}
 }

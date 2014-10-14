@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	bencode "github.com/jackpal/bencode-go"
 	log "github.com/golang/glog"
+	bencode "github.com/jackpal/bencode-go"
 	"github.com/spikebike/nettools"
 )
 
@@ -58,8 +58,8 @@ type queryType struct {
 const (
 	// Once in a while I get a few bigger ones, but meh.
 	maxUDPPacketSize = 4096
-	v4nodeContactLen   = 26
-	v6nodeContactLen   = 38  // some clients seem to send multiples of 38
+	v4nodeContactLen = 26
+	v6nodeContactLen = 38 // some clients seem to send multiples of 38
 	nodeIdLen        = 20
 )
 
@@ -70,23 +70,22 @@ var (
 )
 
 // The 'nodes' response is a string with fixed length contacts concatenated arbitrarily.
-func parseNodesString(nodes string,proto string) (parsed map[string]string) {
-	var nodeContactLen int	
+func parseNodesString(nodes string, proto string) (parsed map[string]string) {
+	var nodeContactLen int
 	if proto == "udp4" {
-		nodeContactLen=v4nodeContactLen
+		nodeContactLen = v4nodeContactLen
 	} else if proto == "udp6" {
-		nodeContactLen=v6nodeContactLen
+		nodeContactLen = v6nodeContactLen
 	} else {
 		return
 	}
 	parsed = make(map[string]string)
 	if len(nodes)%nodeContactLen > 0 {
-		log.V(3).Infof("DHT: len(NodeString) = %d, INVALID LENGTH, should be a multiple of %d", len(nodes),nodeContactLen)
-		log.V(5).Infof("%T %#v\n",nodes,nodes)
+		log.V(3).Infof("DHT: len(NodeString) = %d, INVALID LENGTH, should be a multiple of %d", len(nodes), nodeContactLen)
+		log.V(5).Infof("%T %#v\n", nodes, nodes)
 		return
 	} else {
-		log.V(5).Infof("DHT: len(NodeString) = %d, had %d nodes, nodeContactLen=%d\n",len(nodes),len(nodes)/nodeContactLen,nodeContactLen)
-		log.V(5).Infof("%T %#v\n",nodes,nodes)
+		log.V(5).Infof("DHT: len(NodeString) = %d, had %d nodes, nodeContactLen=%d\n", len(nodes), len(nodes)/nodeContactLen, nodeContactLen)
 	}
 	for i := 0; i < len(nodes); i += nodeContactLen {
 		id := nodes[i : i+nodeIdLen]
@@ -137,7 +136,7 @@ type getPeersResponse struct {
 	Values []string "values"
 	Id     string   "id"
 	Nodes  string   "nodes"
-	Nodes6  string   "nodes6"
+	Nodes6 string   "nodes6"
 	Token  string   "token"
 }
 
@@ -214,7 +213,7 @@ type packetType struct {
 }
 
 func listen(addr string, listenPort int, proto string) (socket *net.UDPConn, err error) {
-   log.V(3).Infof("DHT: Listening for peers on IP: %s port: %d Protocol=%s\n", addr,listenPort,proto)
+	log.V(3).Infof("DHT: Listening for peers on IP: %s port: %d Protocol=%s\n", addr, listenPort, proto)
 	listener, err := net.ListenPacket(proto, addr+":"+strconv.Itoa(listenPort))
 	if err != nil {
 		log.V(3).Infof("DHT: Listen failed:", err)
