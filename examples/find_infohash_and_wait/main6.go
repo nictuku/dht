@@ -20,7 +20,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/spikebike/dht"
+	"github.com/nictuku/dht"
 )
 
 const (
@@ -49,15 +49,12 @@ func main() {
 	conf4 := dht.NewConfig()
 	conf4.UDPProto = "udp4"
 	conf4.Port = 8445
-	conf4.Address = ""
 	// standard IPv4 bootstrap nodes = dht.transmissionbt.com
 	// router.utorrent.com router.bittorrent.com
-	conf4.DHTRouters = "212.129.33.50:6881,91.121.60.42:6881,82.221.103.244:6881,67.215.246.10:6881"
 	conf6 := dht.NewConfig()
 	conf6.UDPProto = "udp6"
 	conf6.Port = 8445
 	conf6.Address = *ipv6Address
-	conf6.DHTRouters = "[2001:41d0:1:aa81:2::1]:6881"
 	// Starts a DHT node with the default options. It picks a random UDP port. To change this, see dht.NewConfig.
 	d4, err := dht.New(conf4)
 	if err != nil {
