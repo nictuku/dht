@@ -84,22 +84,30 @@ type Config struct {
 	// MaxInfoHashPeers is the limit of number of peers to be tracked for each infohash. A
 	// single peer contact typically consumes 6 bytes. Default value: 256.
 	MaxInfoHashPeers int
+	// ClientPerMinuteLimit protects against spammy clients. Ignore their requests if exceeded
+	// this number of packets per minute. Default value: 50.
+	ClientPerMinuteLimit int
+	// ThrottlerTrackedClients is the number of hosts the client throttler remembers. An LRU is used to
+	// track the most interesting ones. Default value: 1000.
+	ThrottlerTrackedClients int64
 }
 
 // Creates a *Config populated with default values.
 func NewConfig() *Config {
 	return &Config{
-		Address:          "",
-		Port:             0, // Picks a random port.
-		NumTargetPeers:   5,
-		DHTRouters:       "de.magnets.im:6881,cz.magnets.im:6881,router.bittorrent.com:6881,dht.transmissionbt.com:6881",
-		MaxNodes:         500,
-		CleanupPeriod:    15 * time.Minute,
-		SaveRoutingTable: true,
-		SavePeriod:       5 * time.Minute,
-		RateLimit:        100,
-		MaxInfoHashes:    2048,
-		MaxInfoHashPeers: 256,
+		Address:                 "",
+		Port:                    0, // Picks a random port.
+		NumTargetPeers:          5,
+		DHTRouters:              "de.magnets.im:6881,cz.magnets.im:6881,router.bittorrent.com:6881,dht.transmissionbt.com:6881",
+		MaxNodes:                500,
+		CleanupPeriod:           15 * time.Minute,
+		SaveRoutingTable:        true,
+		SavePeriod:              5 * time.Minute,
+		RateLimit:               100,
+		MaxInfoHashes:           2048,
+		MaxInfoHashPeers:        256,
+		ClientPerMinuteLimit:    50,
+		ThrottlerTrackedClients: 1000,
 	}
 }
 
@@ -178,7 +186,7 @@ func New(config *Config) (node *DHT, err error) {
 		nodesRequest:   make(chan ihReq, 100),
 		pingRequest:    make(chan *remoteNode),
 		portRequest:    make(chan int),
-		clientThrottle: nettools.NewThrottler(),
+		clientThrottle: nettools.NewThrottler(cfg.ClientPerMinuteLimit, cfg.ThrottlerTrackedClients),
 		tokenSecrets:   []string{newTokenSecret(), newTokenSecret()},
 	}
 	c := openStore(cfg.Port, cfg.SaveRoutingTable)
