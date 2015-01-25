@@ -110,7 +110,7 @@ func NewConfig() *Config {
 		MaxInfoHashPeers:        256,
 		ClientPerMinuteLimit:    50,
 		ThrottlerTrackedClients: 1000,
-		UDPProto:                "udp6",
+		UDPProto:                "udp4",
 	}
 }
 
