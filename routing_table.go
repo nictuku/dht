@@ -7,6 +7,7 @@ import (
 	"time"
 
 	log "github.com/golang/glog"
+	"github.com/nictuku/nettools"
 )
 
 func newRoutingTable() *routingTable {
@@ -36,11 +37,11 @@ type routingTable struct {
 
 // hostPortToNode finds a node based on the specified hostPort specification,
 // which should be a UDP address in the form "host:port".
-func (r *routingTable) hostPortToNode(hostPort string) (node *remoteNode, addr string, existed bool, err error) {
+func (r *routingTable) hostPortToNode(hostPort string, port string) (node *remoteNode, addr string, existed bool, err error) {
 	if hostPort == "" {
 		panic("programming error: hostPortToNode received a nil hostPort")
 	}
-	address, err := net.ResolveUDPAddr("udp", hostPort)
+	address, err := net.ResolveUDPAddr(port, hostPort)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -98,8 +99,8 @@ func isValidAddr(addr string) bool {
 
 // update the existing routingTable entry for this node by setting its correct
 // infohash id. Gives an error if the node was not found.
-func (r *routingTable) update(node *remoteNode) error {
-	_, addr, existed, err := r.hostPortToNode(node.address.String())
+func (r *routingTable) update(node *remoteNode, proto string) error {
+	_, addr, existed, err := r.hostPortToNode(node.address.String(), proto)
 	if err != nil {
 		return err
 	}
@@ -119,14 +120,14 @@ func (r *routingTable) update(node *remoteNode) error {
 
 // insert the provided node into the routing table. Gives an error if another
 // node already existed with that address.
-func (r *routingTable) insert(node *remoteNode) error {
+func (r *routingTable) insert(node *remoteNode, proto string) error {
 	if node.address.Port == 0 {
 		return fmt.Errorf("routingTable.insert() got a node with Port=0")
 	}
 	if node.address.IP.IsUnspecified() {
 		return fmt.Errorf("routingTable.insert() got a node with a non-specified IP address")
 	}
-	_, addr, existed, err := r.hostPortToNode(node.address.String())
+	_, addr, existed, err := r.hostPortToNode(node.address.String(), proto)
 	if err != nil {
 		return err
 	}
@@ -151,20 +152,20 @@ func (r *routingTable) insert(node *remoteNode) error {
 // Host:port, which will be resolved if possible.  Preferably return an entry
 // that is already in the routing table, but create a new one otherwise, thus
 // being idempotent.
-func (r *routingTable) getOrCreateNode(id string, hostPort string) (node *remoteNode, err error) {
-	node, addr, existed, err := r.hostPortToNode(hostPort)
+func (r *routingTable) getOrCreateNode(id string, hostPort string, proto string) (node *remoteNode, err error) {
+	node, addr, existed, err := r.hostPortToNode(hostPort, proto)
 	if err != nil {
 		return nil, err
 	}
 	if existed {
 		return node, nil
 	}
-	udpAddr, err := net.ResolveUDPAddr("udp", addr)
+	udpAddr, err := net.ResolveUDPAddr(proto, addr)
 	if err != nil {
 		return nil, err
 	}
 	node = newRemoteNode(*udpAddr, id)
-	return node, r.insert(node)
+	return node, r.insert(node, proto)
 }
 
 func (r *routingTable) kill(n *remoteNode) {
@@ -242,13 +243,13 @@ func (r *routingTable) cleanup(cleanupPeriod time.Duration) (needPing []*remoteN
 // neighborhoodUpkeep will update the routingtable if the node n is closer than
 // the 8 nodes in our neighborhood, by replacing the least close one
 // (boundary). n.id is assumed to have length 20.
-func (r *routingTable) neighborhoodUpkeep(n *remoteNode) {
+func (r *routingTable) neighborhoodUpkeep(n *remoteNode, proto string) {
 	if r.boundaryNode == nil {
-		r.addNewNeighbor(n, false)
+		r.addNewNeighbor(n, false, proto)
 		return
 	}
 	if r.length() < kNodes {
-		r.addNewNeighbor(n, false)
+		r.addNewNeighbor(n, false, proto)
 		return
 	}
 	cmp := commonBits(r.nodeId, n.id)
@@ -257,13 +258,13 @@ func (r *routingTable) neighborhoodUpkeep(n *remoteNode) {
 		return
 	}
 	if cmp > r.proximity {
-		r.addNewNeighbor(n, true)
+		r.addNewNeighbor(n, true, proto)
 		return
 	}
 }
 
-func (r *routingTable) addNewNeighbor(n *remoteNode, displaceBoundary bool) {
-	if err := r.insert(n); err != nil {
+func (r *routingTable) addNewNeighbor(n *remoteNode, displaceBoundary bool, proto string) {
+	if err := r.insert(n, proto); err != nil {
 		log.V(3).Infof("addNewNeighbor error: %v", err)
 		return
 	}
@@ -273,7 +274,7 @@ func (r *routingTable) addNewNeighbor(n *remoteNode, displaceBoundary bool) {
 	} else {
 		r.resetNeighborhoodBoundary()
 	}
-	log.V(4).Infof("New neighbor added to neighborhood with proximity %d", r.proximity)
+	log.V(4).Infof("New neighbor added %s with proximity %d", nettools.BinaryToDottedPort(n.addressBinaryFormat), r.proximity)
 }
 
 // pingSlowly pings the remote nodes in needPing, distributing the pings

@@ -213,8 +213,8 @@ func (n *nTree) isOK(ih InfoHash) bool {
 	r := n.value
 
 	if len(r.pendingQueries) > maxNodePendingQueries {
-		// debug.Println("DHT: Skipping because there are too many queries pending for this dude.")
-		// debug.Println("DHT: This shouldn't happen because we should have stopped trying already. Might be a BUG.")
+		log.V(3).Infof("DHT: Skipping because there are too many queries pending for this dude.")
+		log.V(3).Infof("DHT: This shouldn't happen because we should have stopped trying already. Might be a BUG.")
 		return false
 	}
 
