@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	bencode "github.com/jackpal/bencode-go"
 	log "github.com/golang/glog"
+	bencode "github.com/jackpal/bencode-go"
 	"github.com/nictuku/nettools"
 )
 
@@ -58,7 +58,8 @@ type queryType struct {
 const (
 	// Once in a while I get a few bigger ones, but meh.
 	maxUDPPacketSize = 4096
-	nodeContactLen   = 26
+	v4nodeContactLen = 26
+	v6nodeContactLen = 38 // some clients seem to send multiples of 38
 	nodeIdLen        = 20
 )
 
@@ -69,12 +70,22 @@ var (
 )
 
 // The 'nodes' response is a string with fixed length contacts concatenated arbitrarily.
-func parseNodesString(nodes string) (parsed map[string]string) {
+func parseNodesString(nodes string, proto string) (parsed map[string]string) {
+	var nodeContactLen int
+	if proto == "udp4" {
+		nodeContactLen = v4nodeContactLen
+	} else if proto == "udp6" {
+		nodeContactLen = v6nodeContactLen
+	} else {
+		return
+	}
 	parsed = make(map[string]string)
 	if len(nodes)%nodeContactLen > 0 {
-		log.V(3).Infof("DHT: Invalid length of nodes.")
-		log.V(3).Infof("DHT: Should be a multiple of %d, got %d", nodeContactLen, len(nodes))
+		log.V(3).Infof("DHT: len(NodeString) = %d, INVALID LENGTH, should be a multiple of %d", len(nodes), nodeContactLen)
+		log.V(5).Infof("%T %#v\n", nodes, nodes)
 		return
+	} else {
+		log.V(5).Infof("DHT: len(NodeString) = %d, had %d nodes, nodeContactLen=%d\n", len(nodes), len(nodes)/nodeContactLen, nodeContactLen)
 	}
 	for i := 0; i < len(nodes); i += nodeContactLen {
 		id := nodes[i : i+nodeIdLen]
@@ -125,6 +136,7 @@ type getPeersResponse struct {
 	Values []string "values"
 	Id     string   "id"
 	Nodes  string   "nodes"
+	Nodes6 string   "nodes6"
 	Token  string   "token"
 }
 
@@ -156,7 +168,7 @@ func sendMsg(conn *net.UDPConn, raddr net.UDPAddr, query interface{}) {
 		return
 	}
 	if n, err := conn.WriteToUDP(b.Bytes(), &raddr); err != nil {
-		// debug.Println("DHT: node write failed:", err)
+		log.V(3).Infof("DHT: node write failed to %+v, error=%s", raddr, err)
 	} else {
 		totalWrittenBytes.Add(int64(n))
 	}
@@ -168,14 +180,14 @@ func readResponse(p packetType) (response responseType, err error) {
 	// The calls to bencode.Unmarshal() can be fragile.
 	defer func() {
 		if x := recover(); x != nil {
-			// debug.Printf("DHT: !!! Recovering from panic() after bencode.Unmarshal %q, %v", string(p.b), x)
+			log.V(3).Infof("DHT: !!! Recovering from panic() after bencode.Unmarshal %q, %v", string(p.b), x)
 		}
 	}()
 	if e2 := bencode.Unmarshal(bytes.NewBuffer(p.b), &response); e2 == nil {
 		err = nil
 		return
 	} else {
-		// debug.Printf("DHT: unmarshal error, odd or partial data during UDP read? %v, err=%s", string(p.b), e2)
+		log.V(3).Infof("DHT: unmarshal error, odd or partial data during UDP read? %v, err=%s", string(p.b), e2)
 		return response, e2
 	}
 	return
@@ -200,11 +212,11 @@ type packetType struct {
 	raddr net.UDPAddr
 }
 
-func listen(addr string, listenPort int) (socket *net.UDPConn, err error) {
-	// debug.Printf("DHT: Listening for peers on port: %d\n", listenPort)
-	listener, err := net.ListenPacket("udp4", addr+":"+strconv.Itoa(listenPort))
+func listen(addr string, listenPort int, proto string) (socket *net.UDPConn, err error) {
+	log.V(3).Infof("DHT: Listening for peers on IP: %s port: %d Protocol=%s\n", addr, listenPort, proto)
+	listener, err := net.ListenPacket(proto, addr+":"+strconv.Itoa(listenPort))
 	if err != nil {
-		// debug.Println("DHT: Listen failed:", err)
+		log.V(3).Infof("DHT: Listen failed:", err)
 	}
 	if listener != nil {
 		socket = listener.(*net.UDPConn)
@@ -217,9 +229,12 @@ func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena are
 	for {
 		b := bytesArena.Pop()
 		n, addr, err := socket.ReadFromUDP(b)
+		if err != nil {
+			log.V(3).Infof("DHT: readResponse error:", err)
+		}
 		b = b[0:n]
 		if n == maxUDPPacketSize {
-			// debug.Printf("DHT: Warning. Received packet with len >= %d, some data may have been discarded.\n", maxUDPPacketSize)
+			log.V(3).Infof("DHT: Warning. Received packet with len >= %d, some data may have been discarded.\n", maxUDPPacketSize)
 		}
 		totalReadBytes.Add(int64(n))
 		if n > 0 && err == nil {
@@ -231,8 +246,6 @@ func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena are
 				return
 			}
 		}
-		// debug.Println("DHT: readResponse error:", err)
-
 		// Do a non-blocking read of the stop channel and stop this goroutine if the channel
 		// has been closed.
 		select {

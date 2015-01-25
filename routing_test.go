@@ -70,7 +70,7 @@ func BenchmarkFindClosest(b *testing.B) {
 				20, len(r.id))
 		}
 		r.reachable = true
-		node.routingTable.insert(r)
+		node.routingTable.insert(r, "udp")
 	}
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
