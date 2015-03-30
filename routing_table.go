@@ -173,7 +173,7 @@ func (r *routingTable) kill(n *remoteNode) {
 	r.nTree.cut(InfoHash(n.id), 0)
 	totalKilledNodes.Add(1)
 
-	if n.id == r.boundaryNode.id {
+	if r.boundaryNode != nil && n.id == r.boundaryNode.id {
 		r.resetNeighborhoodBoundary()
 	}
 }
