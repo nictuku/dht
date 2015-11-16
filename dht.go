@@ -293,6 +293,7 @@ func (d *DHT) Run() error {
 		return err
 	}
 	d.conn = socket
+	defer d.conn.Close()
 
 	// Update the stored port number in case it was set 0, meaning it was
 	// set automatically by the system
