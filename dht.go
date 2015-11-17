@@ -802,9 +802,10 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 	if resp.R.Values != nil {
 		peers := make([]string, 0)
 		for _, peerContact := range resp.R.Values {
-			if ok := d.peerStore.addContact(query.ih, peerContact); ok {
-				peers = append(peers, peerContact)
-			}
+			// send peer even if we already have it in store
+			// the underlying client does/should handle dupes
+			d.peerStore.addContact(query.ih, peerContact)
+			peers = append(peers, peerContact)
 		}
 		if len(peers) > 0 {
 			// Finally, new peers.
