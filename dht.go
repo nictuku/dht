@@ -685,6 +685,9 @@ func (d *DHT) replyAnnouncePeer(addr net.UDPAddr, node *remoteNode, r responseTy
 		// it has an infohash. Enables faster upgrade of other nodes to
 		// "peer" of an infohash, if the announcement is valid.
 		node.lastResponseTime = time.Now().Add(-searchRetryPeriod)
+		if d.peerStore.hasLocalDownload(ih) {
+			d.PeersRequestResults <- map[InfoHash][]string{ih: []string{nettools.DottedPortToBinary(peerAddr.String())}}
+		}
 	}
 	// Always reply positively. jech says this is to avoid "back-tracking", not sure what that means.
 	reply := replyMessage{
@@ -802,9 +805,10 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 	if resp.R.Values != nil {
 		peers := make([]string, 0)
 		for _, peerContact := range resp.R.Values {
-			if ok := d.peerStore.addContact(query.ih, peerContact); ok {
-				peers = append(peers, peerContact)
-			}
+			// send peer even if we already have it in store
+			// the underlying client does/should handle dupes
+			d.peerStore.addContact(query.ih, peerContact)
+			peers = append(peers, peerContact)
 		}
 		if len(peers) > 0 {
 			// Finally, new peers.
