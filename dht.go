@@ -316,6 +316,8 @@ func (d *DHT) initSocket() (err error) {
 func (d *DHT) loop() {
 	// Close socket
 	defer d.conn.Close()
+	// Gives 0 to subsequent calls to d.Port()
+	defer close(d.portRequest)
 
 	// There is goroutine pushing and one popping items out of the arena.
 	// One passes work to the other. So there is little contention in the
