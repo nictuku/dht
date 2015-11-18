@@ -284,20 +284,38 @@ func (d *DHT) findNode(id string) {
 	}
 }
 
-// Run starts a DHT node. It bootstraps a routing table, if necessary, and
-// listens for incoming DHT requests.
+func (d *DHT) Start() (err error) {
+	if err = d.initSocket(); err == nil {
+		go d.loop()
+	}
+	return err
+}
+
 func (d *DHT) Run() error {
-	socketChan := make(chan packetType)
-	socket, err := listen(d.config.Address, d.config.Port, d.config.UDPProto)
+	if err := d.initSocket(); err != nil {
+		return err
+	}
+	d.loop()
+	return nil
+}
+
+func (d *DHT) initSocket() (err error) {
+	d.conn, err = listen(d.config.Address, d.config.Port, d.config.UDPProto)
 	if err != nil {
 		return err
 	}
-	d.conn = socket
-	defer d.conn.Close()
 
 	// Update the stored port number in case it was set 0, meaning it was
 	// set automatically by the system
-	d.config.Port = socket.LocalAddr().(*net.UDPAddr).Port
+	d.config.Port = d.conn.LocalAddr().(*net.UDPAddr).Port
+	return nil
+}
+
+// loop starts a DHT node. It bootstraps a routing table, if necessary, and
+// listens for incoming DHT requests.
+func (d *DHT) loop() {
+	// Close socket
+	defer d.conn.Close()
 
 	// There is goroutine pushing and one popping items out of the arena.
 	// One passes work to the other. So there is little contention in the
@@ -305,7 +323,8 @@ func (d *DHT) Run() error {
 	// readFromSocket or the packet processing ever need to be
 	// parallelized, this would have to be bumped.
 	bytesArena := newArena(maxUDPPacketSize, 3)
-	go readFromSocket(socket, socketChan, bytesArena, d.stop)
+	socketChan := make(chan packetType)
+	go readFromSocket(d.conn, socketChan, bytesArena, d.stop)
 
 	// Bootstrap the network (only if there are configured dht routers).
 	if d.config.DHTRouters != "" {
@@ -343,7 +362,7 @@ func (d *DHT) Run() error {
 			log.V(1).Infof("DHT exiting.")
 			d.clientThrottle.Stop()
 			log.Flush()
-			return nil
+			return
 		case addr := <-d.remoteNodeAcquaintance:
 			d.helloFromPeer(addr)
 		case req := <-d.peersRequest:
