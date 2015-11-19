@@ -639,7 +639,7 @@ func (d *DHT) announcePeer(address net.UDPAddr, ih InfoHash, token string) {
 		return
 	}
 	ty := "announce_peer"
-	log.Infof("DHT: announce_peer => address: %v, ih: %x, token: %x", address, ih, token)
+	log.V(3).Infof("DHT: announce_peer => address: %v, ih: %x, token: %x", address, ih, token)
 	transId := r.newQuery(ty)
 	queryArguments := map[string]interface{}{
 		"id":        d.nodeId,
