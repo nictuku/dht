@@ -304,6 +304,7 @@ func (d *DHT) Start() (err error) {
 // If initSocket succeeds, Run blocks until d.Stop() is called.
 // DEPRECATED - Start should be used instead of Run
 func (d *DHT) Run() error {
+	log.Warning("dht.Run() is deprecated, use dht.Start() instead")
 	if err := d.initSocket(); err != nil {
 		return err
 	}
