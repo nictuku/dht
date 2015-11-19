@@ -32,8 +32,7 @@ func ExampleDHT() {
 		fmt.Println(err)
 		return
 	}
-	err = d.Start()
-	if err != nil {
+	if err = d.Start(); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -90,8 +89,7 @@ func startNode(routers string, ih string) (*DHT, error) {
 	}
 	// Remove the buffer
 	node.peersRequest = make(chan ihReq, 0)
-	err = node.Start()
-	if err != nil {
+	if err = node.Start(); err != nil {
 		return nil, err
 	}
 	node.PeersRequest(ih, true)
@@ -182,8 +180,7 @@ func TestDHTLarge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dht New: %v", err)
 	}
-	err = node.Start()
-	if err != nil {
+	if err = node.Start(); err != nil {
 		t.Fatalf("node.Run: %v", err)
 	}
 	realDHTNodes := []string{

@@ -69,8 +69,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "New DHT error: %v", err)
 			os.Exit(1)
 		}
-		err = d6.Start()
-		if err != nil {
+		if err = d6.Start(); err != nil {
 			fmt.Fprintf(os.Stderr, "DHT start error: %v", err)
 			os.Exit(1)
 		}
@@ -84,8 +83,7 @@ func main() {
 	// For debugging.
 	go http.ListenAndServe(fmt.Sprintf(":%d", httpPortTCP), nil)
 
-	err = d4.Start()
-	if err != nil {
+	if err = d4.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "DHT start error: %v", err)
 		os.Exit(1)
 	}
