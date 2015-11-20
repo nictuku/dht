@@ -302,9 +302,9 @@ func (d *DHT) Start() (err error) {
 // same go routine.
 // If initSocket fails, Run returns with the error.
 // If initSocket succeeds, Run blocks until d.Stop() is called.
-// DEPRECIATED - Start should be used instead of Run
+// DEPRECATED - Start should be used instead of Run
 func (d *DHT) Run() error {
-	log.Warning("dht.Run() is depreciated, use dht.Start() instead")
+	log.Warning("dht.Run() is deprecated, use dht.Start() instead")
 	if err := d.initSocket(); err != nil {
 		return err
 	}
