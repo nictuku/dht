@@ -32,7 +32,10 @@ func ExampleDHT() {
 		fmt.Println(err)
 		return
 	}
-	go d.Run()
+	if err = d.Start(); err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	infoHash, err := DecodeInfoHash("d1c5676ae7ac98e8b19f63565905105e3c4c37a2")
 	if err != nil {
@@ -86,7 +89,9 @@ func startNode(routers string, ih string) (*DHT, error) {
 	}
 	// Remove the buffer
 	node.peersRequest = make(chan ihReq, 0)
-	go node.Run()
+	if err = node.Start(); err != nil {
+		return nil, err
+	}
 	node.PeersRequest(ih, true)
 	return node, nil
 }
@@ -175,7 +180,9 @@ func TestDHTLarge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dht New: %v", err)
 	}
-	go node.Run()
+	if err = node.Start(); err != nil {
+		t.Fatalf("node.Run: %v", err)
+	}
 	realDHTNodes := []string{
 		"1.a.magnets.im",
 		"router.utorrent.com",

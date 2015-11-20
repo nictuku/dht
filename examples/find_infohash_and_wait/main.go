@@ -54,7 +54,10 @@ func main() {
 	// For debugging.
 	go http.ListenAndServe(fmt.Sprintf(":%d", httpPortTCP), nil)
 
-	go d.Run()
+	if err = d.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "DHT start error: %v", err)
+		os.Exit(1)
+	}
 	go drainresults(d)
 
 	for {

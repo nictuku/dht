@@ -69,7 +69,10 @@ func main() {
 			fmt.Fprintf(os.Stderr, "New DHT error: %v", err)
 			os.Exit(1)
 		}
-		go d6.Run()
+		if err = d6.Start(); err != nil {
+			fmt.Fprintf(os.Stderr, "DHT start error: %v", err)
+			os.Exit(1)
+		}
 		go drainresults(d6)
 	} else {
 		fmt.Fprintf(os.Stderr, "Not binding to IPv6 interface.  If desired pass -v6=[address] for the\n")
@@ -80,7 +83,10 @@ func main() {
 	// For debugging.
 	go http.ListenAndServe(fmt.Sprintf(":%d", httpPortTCP), nil)
 
-	go d4.Run()
+	if err = d4.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "DHT start error: %v", err)
+		os.Exit(1)
+	}
 	go drainresults(d4)
 	for {
 		d4.PeersRequest(string(ih), true)
