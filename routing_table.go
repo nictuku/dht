@@ -168,7 +168,7 @@ func (r *routingTable) getOrCreateNode(id string, hostPort string, proto string)
 	return node, r.insert(node, proto)
 }
 
-func (r *routingTable) kill(n *remoteNode) {
+func (r *routingTable) kill(n *remoteNode, p *peerStore) {
 	delete(r.addresses, n.address.String())
 	r.nTree.cut(InfoHash(n.id), 0)
 	totalKilledNodes.Add(1)
@@ -176,6 +176,7 @@ func (r *routingTable) kill(n *remoteNode) {
 	if r.boundaryNode != nil && n.id == r.boundaryNode.id {
 		r.resetNeighborhoodBoundary()
 	}
+	p.killContact(nettools.BinaryToDottedPort(n.addressBinaryFormat))
 }
 
 func (r *routingTable) resetNeighborhoodBoundary() {
@@ -190,19 +191,19 @@ func (r *routingTable) resetNeighborhoodBoundary() {
 
 }
 
-func (r *routingTable) cleanup(cleanupPeriod time.Duration) (needPing []*remoteNode) {
+func (r *routingTable) cleanup(cleanupPeriod time.Duration, p *peerStore) (needPing []*remoteNode) {
 	needPing = make([]*remoteNode, 0, 10)
 	t0 := time.Now()
 	// Needs some serious optimization.
 	for addr, n := range r.addresses {
 		if addr != n.address.String() {
 			log.V(3).Infof("cleanup: node address mismatches: %v != %v. Deleting node", addr, n.address.String())
-			r.kill(n)
+			r.kill(n, p)
 			continue
 		}
 		if addr == "" {
 			log.V(3).Infof("cleanup: found empty address for node %x. Deleting node", n.id)
-			r.kill(n)
+			r.kill(n, p)
 			continue
 		}
 		if n.reachable {
@@ -210,9 +211,9 @@ func (r *routingTable) cleanup(cleanupPeriod time.Duration) (needPing []*remoteN
 				goto PING
 			}
 			// Tolerate 2 cleanup cycles.
-			if time.Since(n.lastResponseTime) > cleanupPeriod*2+(time.Minute) {
+			if time.Since(n.lastResponseTime) > cleanupPeriod*2+(cleanupPeriod/15) {
 				log.V(4).Infof("DHT: Old node seen %v ago. Deleting", time.Since(n.lastResponseTime))
-				r.kill(n)
+				r.kill(n, p)
 				continue
 			}
 			if time.Since(n.lastResponseTime).Nanoseconds() < cleanupPeriod.Nanoseconds()/2 {
@@ -222,10 +223,10 @@ func (r *routingTable) cleanup(cleanupPeriod time.Duration) (needPing []*remoteN
 
 		} else {
 			// Not reachable.
-			if len(n.pendingQueries) > 2 {
+			if len(n.pendingQueries) > maxNodePendingQueries {
 				// Didn't reply to 2 consecutive queries.
 				log.V(4).Infof("DHT: Node never replied to ping. Deleting. %v", n.address)
-				r.kill(n)
+				r.kill(n, p)
 				continue
 			}
 		}
@@ -243,13 +244,13 @@ func (r *routingTable) cleanup(cleanupPeriod time.Duration) (needPing []*remoteN
 // neighborhoodUpkeep will update the routingtable if the node n is closer than
 // the 8 nodes in our neighborhood, by replacing the least close one
 // (boundary). n.id is assumed to have length 20.
-func (r *routingTable) neighborhoodUpkeep(n *remoteNode, proto string) {
+func (r *routingTable) neighborhoodUpkeep(n *remoteNode, proto string, p *peerStore) {
 	if r.boundaryNode == nil {
-		r.addNewNeighbor(n, false, proto)
+		r.addNewNeighbor(n, false, proto, p)
 		return
 	}
 	if r.length() < kNodes {
-		r.addNewNeighbor(n, false, proto)
+		r.addNewNeighbor(n, false, proto, p)
 		return
 	}
 	cmp := commonBits(r.nodeId, n.id)
@@ -258,19 +259,19 @@ func (r *routingTable) neighborhoodUpkeep(n *remoteNode, proto string) {
 		return
 	}
 	if cmp > r.proximity {
-		r.addNewNeighbor(n, true, proto)
+		r.addNewNeighbor(n, true, proto, p)
 		return
 	}
 }
 
-func (r *routingTable) addNewNeighbor(n *remoteNode, displaceBoundary bool, proto string) {
+func (r *routingTable) addNewNeighbor(n *remoteNode, displaceBoundary bool, proto string, p *peerStore) {
 	if err := r.insert(n, proto); err != nil {
 		log.V(3).Infof("addNewNeighbor error: %v", err)
 		return
 	}
 	if displaceBoundary && r.boundaryNode != nil {
 		// This will also take care of setting a new boundary.
-		r.kill(r.boundaryNode)
+		r.kill(r.boundaryNode, p)
 	} else {
 		r.resetNeighborhoodBoundary()
 	}

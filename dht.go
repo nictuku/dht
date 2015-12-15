@@ -470,7 +470,7 @@ func (d *DHT) loop() {
 				tokenBucket += d.config.RateLimit / 10
 			}
 		case <-cleanupTicker:
-			needPing := d.routingTable.cleanup(d.config.CleanupPeriod)
+			needPing := d.routingTable.cleanup(d.config.CleanupPeriod, d.peerStore)
 			go pingSlowly(d.pingRequest, needPing, d.config.CleanupPeriod, d.stop)
 			if d.needMoreNodes() {
 				d.bootstrap()
@@ -494,6 +494,22 @@ func (d *DHT) loop() {
 func (d *DHT) needMoreNodes() bool {
 	n := d.routingTable.numNodes()
 	return n < minNodes || n*2 < d.config.MaxNodes
+}
+
+func (d *DHT) needMorePeers(ih InfoHash) bool {
+	return d.peerStore.alive(ih) < d.config.NumTargetPeers
+}
+
+func (d *DHT) getMorePeers(r *remoteNode) {
+	for ih := range d.peerStore.localActiveDownloads {
+		if d.needMorePeers(ih) {
+			if r == nil {
+				go d.getPeers(ih)
+			} else {
+				go d.getPeersFrom(r, ih)
+			}
+		}
+	}
 }
 
 func (d *DHT) helloFromPeer(addr string) {
@@ -574,7 +590,7 @@ func (d *DHT) processPacket(p packetType) {
 			}
 			node.lastResponseTime = time.Now()
 			node.pastQueries[r.T] = query
-			d.routingTable.neighborhoodUpkeep(node, d.config.UDPProto)
+			d.routingTable.neighborhoodUpkeep(node, d.config.UDPProto, d.peerStore)
 
 			// If this is the first host added to the routing table, attempt a
 			// recursive lookup of our own address, to build our neighborhood ASAP.
@@ -813,7 +829,7 @@ func (d *DHT) nodesForInfoHash(ih InfoHash) string {
 			binaryHost := r.id + nettools.DottedPortToBinary(r.address.String())
 			if binaryHost == "" {
 				log.V(3).Infof("killing node with bogus address %v", r.address.String())
-				d.routingTable.kill(r)
+				d.routingTable.kill(r, d.peerStore)
 			} else {
 				n = append(n, binaryHost)
 			}
@@ -944,8 +960,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 					log.Infof("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.",
 						id, address, node.id, node.address, x)
 				}
-				_, err := d.routingTable.getOrCreateNode(id, addr, d.config.UDPProto)
-				if err == nil && d.peerStore.count(query.ih) < d.config.NumTargetPeers {
+				if _, err := d.routingTable.getOrCreateNode(id, addr, d.config.UDPProto); err == nil && d.needMorePeers(query.ih) {
 					// Re-add this request to the queue. This would in theory
 					// batch similar requests, because new nodes are already
 					// available in the routing table and will be used at the
@@ -1020,7 +1035,8 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 				// Includes the node in the routing table and ignores errors.
 				//
 				// Only continue the search if we really have to.
-				if _, err := d.routingTable.getOrCreateNode(id, addr, d.config.UDPProto); err != nil {
+				r, err := d.routingTable.getOrCreateNode(id, addr, d.config.UDPProto)
+				if err != nil {
 					log.Warningf("processFindNodeResults calling getOrCreateNode: %v. Id=%x, Address=%q", err, id, addr)
 					continue
 				}
@@ -1034,6 +1050,7 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 						// information.
 					}
 				}
+				d.getMorePeers(r)
 			}
 		}
 	}
