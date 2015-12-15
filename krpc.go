@@ -123,6 +123,9 @@ func (r *remoteNode) wasContactedRecently(ih InfoHash) bool {
 			return true
 		}
 	}
+	if !r.lastSearchTime.IsZero() && time.Since(r.lastSearchTime) > searchRetryPeriod {
+		return false
+	}
 	for _, q := range r.pastQueries {
 		if q.ih == ih {
 			return true
