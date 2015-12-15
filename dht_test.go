@@ -13,12 +13,6 @@ import (
 	"github.com/nictuku/nettools"
 )
 
-func init() {
-	// TestDHTLocal requires contacting the same nodes multiple times, so
-	// shorten the retry period to make tests run faster.
-	searchRetryPeriod = time.Second
-}
-
 // ExampleDHT is a simple example that searches for a particular infohash and
 // exits when it finds any peers. A stand-alone version can be found in the
 // examples/ directory.
@@ -46,6 +40,8 @@ func ExampleDHT() {
 	tick := time.Tick(time.Second)
 
 	var infoHashPeers map[InfoHash][]string
+	timer := time.NewTimer(30 * time.Second)
+	defer timer.Stop()
 M:
 	for {
 		select {
@@ -55,7 +51,7 @@ M:
 			d.PeersRequest(string(infoHash), false)
 		case infoHashPeers = <-d.PeersRequestResults:
 			break M
-		case <-time.After(30 * time.Second):
+		case <-timer.C:
 			fmt.Printf("Could not find new peers: timed out")
 			return
 		}
@@ -125,6 +121,7 @@ func TestDHTLocal(t *testing.T) {
 		fmt.Println("Skipping TestDHTLocal")
 		return
 	}
+	searchRetryPeriod = time.Second
 	infoHash, err := DecodeInfoHash("d1c5676ae7ac98e8b19f63565905105e3c4c37a2")
 	if err != nil {
 		t.Fatalf(err.Error())
@@ -165,6 +162,7 @@ func TestDHTLocal(t *testing.T) {
 	n1.Stop()
 	n2.Stop()
 	n3.Stop()
+	searchRetryPeriod = time.Second * 15
 }
 
 // Requires Internet access and can be flaky if the server or the internet is
