@@ -22,28 +22,31 @@ func (p *peerContactsSet) next() []string {
 		count = len(p.set)
 	}
 	x := make([]string, 0, count)
+	xx := make(map[string]bool) //maps are easier to dedupe
 	for range p.set {
 		nid := p.ring.Move(1).Value.(string)
-		if p.set[nid] {
-			x = append(x, nid)
+		if _, ok := xx[nid]; p.set[nid] && !ok {
+			xx[nid] = true
 		}
-		if len(x) >= count {
+		if len(xx) >= count {
 			break
 		}
 	}
-	if len(x) < count {
+
+	if len(xx) < count {
 		for range p.set {
 			nid := p.ring.Move(1).Value.(string)
-			for j := range x {
-				if nid == x[j] {
-					continue
-				}
+			if _, ok := xx[nid]; ok {
+				continue
 			}
-			x = append(x, p.ring.Move(1).Value.(string))
-			if len(x) >= count {
+			xx[nid] = true
+			if len(xx) >= count {
 				break
 			}
 		}
+	}
+	for id := range xx {
+		x = append(x, id)
 	}
 	return x
 }
