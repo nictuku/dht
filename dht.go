@@ -504,9 +504,9 @@ func (d *DHT) getMorePeers(r *remoteNode) {
 	for ih := range d.peerStore.localActiveDownloads {
 		if d.needMorePeers(ih) {
 			if r == nil {
-				go d.getPeers(ih)
+				d.getPeers(ih)
 			} else {
-				go d.getPeersFrom(r, ih)
+				d.getPeersFrom(r, ih)
 			}
 		}
 	}
