@@ -1,7 +1,5 @@
 package dht
 
-// TODO: Cleanup stale peer contacts.
-
 import (
 	"container/ring"
 
@@ -24,11 +22,31 @@ func (p *peerContactsSet) next() []string {
 		count = len(p.set)
 	}
 	x := make([]string, 0, count)
-	var next *ring.Ring
-	for i := 0; i < count; i++ {
-		next = p.ring.Next()
-		x = append(x, next.Value.(string))
-		p.ring = next
+	xx := make(map[string]bool) //maps are easier to dedupe
+	for range p.set {
+		nid := p.ring.Move(1).Value.(string)
+		if _, ok := xx[nid]; p.set[nid] && !ok {
+			xx[nid] = true
+		}
+		if len(xx) >= count {
+			break
+		}
+	}
+
+	if len(xx) < count {
+		for range p.set {
+			nid := p.ring.Move(1).Value.(string)
+			if _, ok := xx[nid]; ok {
+				continue
+			}
+			xx[nid] = true
+			if len(xx) >= count {
+				break
+			}
+		}
+	}
+	for id := range xx {
+		x = append(x, id)
 	}
 	return x
 }
@@ -53,9 +71,57 @@ func (p *peerContactsSet) put(peerContact string) bool {
 	return true
 }
 
+// drop cycles throught the peerContactSet and deletes the contact if it finds it
+// if the argument is empty, it first tries to drop a dead peer
+func (p *peerContactsSet) drop(peerContact string) string {
+	if peerContact == "" {
+		if c := p.dropDead(); c != "" {
+			return c
+		} else {
+			return p.drop(p.ring.Next().Value.(string))
+		}
+	}
+	for i := 0; i < p.ring.Len()+1; i++ {
+		if p.ring.Move(1).Value.(string) == peerContact {
+			dn := p.ring.Unlink(1).Value.(string)
+			delete(p.set, dn)
+			return dn
+		}
+	}
+	return ""
+}
+
+// dropDead drops the first dead contact, returns the id if a contact was dropped
+func (p *peerContactsSet) dropDead() string {
+	for i := 0; i < p.ring.Len()+1; i++ {
+		if !p.set[p.ring.Move(1).Value.(string)] {
+			dn := p.ring.Unlink(1).Value.(string)
+			delete(p.set, dn)
+			return  dn
+		}
+	}
+	return ""
+}
+
+func (p *peerContactsSet) kill(peerContact string) {
+	if ok := p.set[peerContact]; ok {
+		p.set[peerContact] = false
+	}
+}
+
 // Size is the number of contacts known for an infohash.
 func (p *peerContactsSet) Size() int {
 	return len(p.set)
+}
+
+func (p *peerContactsSet) Alive() int {
+	var ret int = 0
+	for ih := range p.set {
+		if p.set[ih] {
+			ret++
+		}
+	}
+	return ret
 }
 
 func newPeerStore(maxInfoHashes, maxInfoHashPeers int) *peerStore {
@@ -92,7 +158,15 @@ func (h *peerStore) count(ih InfoHash) int {
 	if peers == nil {
 		return 0
 	}
-	return len(peers.set)
+	return peers.Size()
+}
+
+func (h *peerStore) alive(ih InfoHash) int {
+	peers := h.get(ih)
+	if peers == nil {
+		return 0
+	}
+	return peers.Alive()
 }
 
 // peerContacts returns a random set of 8 peers for the ih InfoHash.
@@ -113,11 +187,13 @@ func (h *peerStore) addContact(ih InfoHash, peerContact string) bool {
 		var okType bool
 		peers, okType = p.(*peerContactsSet)
 		if okType && peers != nil {
-			if len(peers.set) >= h.maxInfoHashPeers {
-				// Already tracking too many peers for this infohash.
-				// TODO: Use a circular buffer and discard
-				// other contacts.
-				return false
+			if peers.Size() >= h.maxInfoHashPeers {
+				if _, ok := peers.set[peerContact]; ok {
+					return false
+				}
+				if peers.drop("") == "" {
+					return false
+				}
 			}
 			h.infoHashPeers.Add(string(ih), peers)
 			return peers.put(peerContact)
@@ -127,6 +203,17 @@ func (h *peerStore) addContact(ih InfoHash, peerContact string) bool {
 	peers = &peerContactsSet{set: make(map[string]bool)}
 	h.infoHashPeers.Add(string(ih), peers)
 	return peers.put(peerContact)
+}
+
+func (h *peerStore) killContact(peerContact string) {
+	if h == nil {
+		return
+	}
+	for ih := range h.localActiveDownloads {
+		if p := h.get(ih); p != nil {
+			p.kill(peerContact)
+		}
+	}
 }
 
 func (h *peerStore) addLocalDownload(ih InfoHash) {

@@ -265,11 +265,18 @@ func (d *DHT) AddNode(addr string) {
 // Asks for more peers for a torrent.
 func (d *DHT) getPeers(infoHash InfoHash) {
 	closest := d.routingTable.lookupFiltered(infoHash)
-	for _, r := range closest {
-		// *remoteNode is nil if it got filtered.
-		if r != nil {
-			d.getPeersFrom(r, infoHash)
+	if len(closest) == 0 {
+		for _, s := range strings.Split(d.config.DHTRouters, ",") {
+			if s != "" {
+				r, e := d.routingTable.getOrCreateNode("", s, d.config.UDPProto)
+				if e == nil {
+					d.getPeersFrom(r, infoHash)
+				}
+			}
 		}
+	}
+	for _, r := range closest {
+		d.getPeersFrom(r, infoHash)
 	}
 }
 
@@ -277,10 +284,18 @@ func (d *DHT) getPeers(infoHash InfoHash) {
 func (d *DHT) findNode(id string) {
 	ih := InfoHash(id)
 	closest := d.routingTable.lookupFiltered(ih)
-	for _, r := range closest {
-		if r != nil {
-			d.findNodeFrom(r, id)
+	if len(closest) == 0 {
+		for _, s := range strings.Split(d.config.DHTRouters, ",") {
+			if s != "" {
+				r, e := d.routingTable.getOrCreateNode("", s, d.config.UDPProto)
+				if e == nil {
+					d.findNodeFrom(r, id)
+				}
+			}
 		}
+	}
+	for _, r := range closest {
+		d.findNodeFrom(r, id)
 	}
 }
 
@@ -326,6 +341,22 @@ func (d *DHT) initSocket() (err error) {
 	return nil
 }
 
+
+func (d *DHT) bootstrap() {
+	// Bootstrap the network (only if there are configured dht routers).
+	for _, s := range strings.Split(d.config.DHTRouters, ",") {
+		if s != "" {
+			d.ping(s)
+			r, e := d.routingTable.getOrCreateNode("", s, d.config.UDPProto)
+			if e == nil {
+				d.findNodeFrom(r, d.nodeId)
+			}
+		}
+	}
+	d.findNode(d.nodeId)
+	d.getMorePeers(nil)
+}
+
 // loop is the main working section of dht.
 // It bootstraps a routing table, if necessary,
 // and listens for incoming DHT requests until d.Stop()
@@ -343,12 +374,7 @@ func (d *DHT) loop() {
 	socketChan := make(chan packetType)
 	go readFromSocket(d.conn, socketChan, bytesArena, d.stop)
 
-	// Bootstrap the network (only if there are configured dht routers).
-	if d.config.DHTRouters != "" {
-		for _, s := range strings.Split(d.config.DHTRouters, ",") {
-			d.ping(s)
-		}
-	}
+	d.bootstrap()
 
 	cleanupTicker := time.Tick(d.config.CleanupPeriod)
 	secretRotateTicker := time.Tick(secretRotatePeriod)
@@ -405,9 +431,7 @@ func (d *DHT) loop() {
 					d.peerStore.addLocalDownload(ih)
 				}
 
-				if d.peerStore.count(ih) < d.config.NumTargetPeers {
-					d.getPeers(ih)
-				}
+				d.getPeers(ih) // I might have enough peers in the peerstore, but no seeds
 			}
 
 		case req := <-d.nodesRequest:
@@ -446,8 +470,11 @@ func (d *DHT) loop() {
 				tokenBucket += d.config.RateLimit / 10
 			}
 		case <-cleanupTicker:
-			needPing := d.routingTable.cleanup(d.config.CleanupPeriod)
+			needPing := d.routingTable.cleanup(d.config.CleanupPeriod, d.peerStore)
 			go pingSlowly(d.pingRequest, needPing, d.config.CleanupPeriod, d.stop)
+			if d.needMoreNodes() {
+				d.bootstrap()
+			}
 		case node := <-d.pingRequest:
 			d.pingNode(node)
 		case <-secretRotateTicker:
@@ -467,6 +494,22 @@ func (d *DHT) loop() {
 func (d *DHT) needMoreNodes() bool {
 	n := d.routingTable.numNodes()
 	return n < minNodes || n*2 < d.config.MaxNodes
+}
+
+func (d *DHT) needMorePeers(ih InfoHash) bool {
+	return d.peerStore.alive(ih) < d.config.NumTargetPeers
+}
+
+func (d *DHT) getMorePeers(r *remoteNode) {
+	for ih := range d.peerStore.localActiveDownloads {
+		if d.needMorePeers(ih) {
+			if r == nil {
+				d.getPeers(ih)
+			} else {
+				d.getPeersFrom(r, ih)
+			}
+		}
+	}
 }
 
 func (d *DHT) helloFromPeer(addr string) {
@@ -547,7 +590,7 @@ func (d *DHT) processPacket(p packetType) {
 			}
 			node.lastResponseTime = time.Now()
 			node.pastQueries[r.T] = query
-			d.routingTable.neighborhoodUpkeep(node, d.config.UDPProto)
+			d.routingTable.neighborhoodUpkeep(node, d.config.UDPProto, d.peerStore)
 
 			// If this is the first host added to the routing table, attempt a
 			// recursive lookup of our own address, to build our neighborhood ASAP.
@@ -630,10 +673,17 @@ func (d *DHT) pingNode(r *remoteNode) {
 }
 
 func (d *DHT) getPeersFrom(r *remoteNode, ih InfoHash) {
+	if r == nil {
+		return
+	}
 	totalSentGetPeers.Add(1)
 	ty := "get_peers"
 	transId := r.newQuery(ty)
-	r.pendingQueries[transId].ih = ih
+	if _, ok := r.pendingQueries[transId]; ok {
+		r.pendingQueries[transId].ih = ih
+	} else {
+		r.pendingQueries[transId] = &queryType{ih: ih}
+	}
 	queryArguments := map[string]interface{}{
 		"id":        d.nodeId,
 		"info_hash": ih,
@@ -643,16 +693,24 @@ func (d *DHT) getPeersFrom(r *remoteNode, ih InfoHash) {
 		x := hashDistance(InfoHash(r.id), ih)
 		log.V(3).Infof("DHT sending get_peers. nodeID: %x@%v, InfoHash: %x , distance: %x", r.id, r.address, ih, x)
 	}
+	r.lastSearchTime = time.Now()
 	sendMsg(d.conn, r.address, query)
 }
 
 func (d *DHT) findNodeFrom(r *remoteNode, id string) {
+	if r == nil {
+		return
+	}
 	totalSentFindNode.Add(1)
 	ty := "find_node"
 	transId := r.newQuery(ty)
 	ih := InfoHash(id)
 	log.V(3).Infof("findNodeFrom adding pendingQueries transId=%v ih=%x", transId, ih)
-	r.pendingQueries[transId].ih = ih
+	if _, ok := r.pendingQueries[transId]; ok {
+		r.pendingQueries[transId].ih = ih
+	} else {
+		r.pendingQueries[transId] = &queryType{ih: ih}
+	}
 	queryArguments := map[string]interface{}{
 		"id":     d.nodeId,
 		"target": id,
@@ -662,6 +720,7 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 		x := hashDistance(InfoHash(r.id), ih)
 		log.V(3).Infof("DHT sending find_node. nodeID: %x@%v, target ID: %x , distance: %x", r.id, r.address, id, x)
 	}
+	r.lastSearchTime = time.Now()
 	sendMsg(d.conn, r.address, query)
 }
 
@@ -770,7 +829,7 @@ func (d *DHT) nodesForInfoHash(ih InfoHash) string {
 			binaryHost := r.id + nettools.DottedPortToBinary(r.address.String())
 			if binaryHost == "" {
 				log.V(3).Infof("killing node with bogus address %v", r.address.String())
-				d.routingTable.kill(r)
+				d.routingTable.kill(r, d.peerStore)
 			} else {
 				n = append(n, binaryHost)
 			}
@@ -804,13 +863,16 @@ func (d *DHT) replyFindNode(addr net.UDPAddr, r responseType) {
 		R: r0,
 	}
 
-	// XXX we currently can't give out the peer contact. Probably requires
-	// processing announce_peer.  XXX If there was a total match, that guy
-	// is the last.
-	neighbors := d.routingTable.lookup(node)
+	neighbors := d.routingTable.lookupFiltered(node)
+	if len(neighbors) < kNodes {
+		neighbors = append(neighbors, d.routingTable.lookup(node)...)
+	}
 	n := make([]string, 0, kNodes)
 	for _, r := range neighbors {
-		n = append(n, r.id+r.addressBinaryFormat)
+		n = append(n, r.id + r.addressBinaryFormat)
+		if len(n) == kNodes {
+			break
+		}
 	}
 	log.V(3).Infof("replyFindNode: Nodes only. Giving %d", len(n))
 	reply.R["nodes"] = strings.Join(n, "")
@@ -869,9 +931,6 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 				log.V(5).Infof("DHT got reference of self for get_peers, id %x", id)
 				continue
 			}
-			if d.peerStore.count(query.ih) >= d.config.NumTargetPeers {
-				return
-			}
 
 			// If it's in our routing table already, ignore it.
 			_, addr, existed, err := d.routingTable.hostPortToNode(address, d.config.UDPProto)
@@ -901,8 +960,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 					log.Infof("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.",
 						id, address, node.id, node.address, x)
 				}
-				_, err := d.routingTable.getOrCreateNode(id, addr, d.config.UDPProto)
-				if err == nil && d.peerStore.count(query.ih) < d.config.NumTargetPeers {
+				if _, err := d.routingTable.getOrCreateNode(id, addr, d.config.UDPProto); err == nil && d.needMorePeers(query.ih) {
 					// Re-add this request to the queue. This would in theory
 					// batch similar requests, because new nodes are already
 					// available in the routing table and will be used at the
@@ -977,7 +1035,8 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 				// Includes the node in the routing table and ignores errors.
 				//
 				// Only continue the search if we really have to.
-				if _, err := d.routingTable.getOrCreateNode(id, addr, d.config.UDPProto); err != nil {
+				r, err := d.routingTable.getOrCreateNode(id, addr, d.config.UDPProto)
+				if err != nil {
 					log.Warningf("processFindNodeResults calling getOrCreateNode: %v. Id=%x, Address=%q", err, id, addr)
 					continue
 				}
@@ -991,6 +1050,7 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 						// information.
 					}
 				}
+				d.getMorePeers(r)
 			}
 		}
 	}
