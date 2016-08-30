@@ -227,7 +227,7 @@ func newTokenSecret() string {
 // Logger allows the DHT client to attach hooks for certain RPCs so it can log
 // interesting events any way it wants.
 type Logger interface {
-	GetPeers(net.UDPAddr, string, InfoHash)
+	GetPeers(addr net.UDPAddr, queryID string, infoHash InfoHash)
 }
 
 type ihReq struct {
