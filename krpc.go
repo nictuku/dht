@@ -273,6 +273,10 @@ func newTransactionId() int {
 
 type InfoHash string
 
+func (i InfoHash) String() string {
+    return fmt.Sprintf("%x", i)
+}
+
 // DecodeInfoHash transforms a hex-encoded 20-characters string to a binary
 // infohash.
 func DecodeInfoHash(x string) (b InfoHash, err error) {
