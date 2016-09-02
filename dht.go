@@ -36,6 +36,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/golang/glog"
@@ -157,6 +158,7 @@ type DHT struct {
 	pingRequest            chan *remoteNode
 	portRequest            chan int
 	stop                   chan bool
+	wg                     sync.WaitGroup
 	clientThrottle         *nettools.ClientThrottle
 	store                  *dhtStore
 	tokenSecrets           []string
@@ -207,7 +209,9 @@ func New(config *Config) (node *DHT, err error) {
 
 	// This is called before the engine is up and ready to read from the
 	// underlying channel.
+	node.wg.Add(1)
 	go func() {
+		defer node.wg.Done()
 		for addr, _ := range c.Remotes {
 			node.AddNode(addr)
 		}
@@ -247,6 +251,7 @@ func (d *DHT) PeersRequest(ih string, announce bool) {
 // Stop the DHT node.
 func (d *DHT) Stop() {
 	close(d.stop)
+	d.wg.Wait()
 }
 
 // Port returns the port number assigned to the DHT. This is useful when
@@ -307,7 +312,11 @@ func (d *DHT) findNode(id string) {
 // by the caller to stop the dht
 func (d *DHT) Start() (err error) {
 	if err = d.initSocket(); err == nil {
-		go d.loop()
+		d.wg.Add(1)
+		go func() {
+			defer d.wg.Done()
+			d.loop()
+		}()
 	}
 	return err
 }
@@ -341,7 +350,6 @@ func (d *DHT) initSocket() (err error) {
 	return nil
 }
 
-
 func (d *DHT) bootstrap() {
 	// Bootstrap the network (only if there are configured dht routers).
 	for _, s := range strings.Split(d.config.DHTRouters, ",") {
@@ -372,7 +380,11 @@ func (d *DHT) loop() {
 	// parallelized, this would have to be bumped.
 	bytesArena := newArena(maxUDPPacketSize, 3)
 	socketChan := make(chan packetType)
-	go readFromSocket(d.conn, socketChan, bytesArena, d.stop)
+	d.wg.Add(1)
+	go func() {
+		defer d.wg.Done()
+		readFromSocket(d.conn, socketChan, bytesArena, d.stop)
+	}()
 
 	d.bootstrap()
 
@@ -471,7 +483,11 @@ func (d *DHT) loop() {
 			}
 		case <-cleanupTicker:
 			needPing := d.routingTable.cleanup(d.config.CleanupPeriod, d.peerStore)
-			go pingSlowly(d.pingRequest, needPing, d.config.CleanupPeriod, d.stop)
+			d.wg.Add(1)
+			go func() {
+				defer d.wg.Done()
+				pingSlowly(d.pingRequest, needPing, d.config.CleanupPeriod, d.stop)
+			}()
 			if d.needMoreNodes() {
 				d.bootstrap()
 			}
@@ -869,7 +885,7 @@ func (d *DHT) replyFindNode(addr net.UDPAddr, r responseType) {
 	}
 	n := make([]string, 0, kNodes)
 	for _, r := range neighbors {
-		n = append(n, r.id + r.addressBinaryFormat)
+		n = append(n, r.id+r.addressBinaryFormat)
 		if len(n) == kNodes {
 			break
 		}
