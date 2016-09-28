@@ -930,7 +930,12 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 			result := map[InfoHash][]string{query.ih: peers}
 			totalPeers.Add(int64(len(peers)))
 			log.V(2).Infof("DHT: processGetPeerResults, totalPeers: %v", totalPeers.String())
-			d.PeersRequestResults <- result
+			select {
+			case d.PeersRequestResults <- result:
+			case <-d.stop:
+				// if we're closing down and the caller has stopped reading
+				// from PeersRequestResults, drop the result.
+			}
 		}
 	}
 	var nodelist string
