@@ -108,7 +108,7 @@ func (r *routingTable) update(node *remoteNode, proto string) error {
 		return fmt.Errorf("routingTable.update received an invalid address %v", addr)
 	}
 	if !existed {
-		return fmt.Errorf("node missing from the routing table:", node.address.String())
+		return fmt.Errorf("node missing from the routing table: %v", node.address.String())
 	}
 	if node.id != "" {
 		r.nTree.insert(node)
