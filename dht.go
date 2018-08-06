@@ -74,6 +74,8 @@ type Config struct {
 	//  If true, the node will read the routing table from disk on startup and save routing
 	//  table snapshots on disk every few minutes. Default value: true.
 	SaveRoutingTable bool
+	// do not reply to any incoming queries
+	PassivMode bool
 	// How often to save the routing table to disk. Default value: 5 minutes.
 	SavePeriod time.Duration
 	// Maximum packets per second to be processed. Disabled if negative. Default value: 100.
@@ -105,6 +107,7 @@ func NewConfig() *Config {
 		MaxNodes:                500,
 		CleanupPeriod:           15 * time.Minute,
 		SaveRoutingTable:        true,
+		PassivMode:              false,
 		SavePeriod:              5 * time.Minute,
 		RateLimit:               100,
 		MaxInfoHashes:           2048,
@@ -654,6 +657,10 @@ func (d *DHT) processPacket(p packetType) {
 			if d.routingTable.length() < d.config.MaxNodes {
 				d.ping(addr)
 			}
+		}
+		// don't reply to any queries if in passivMode
+		if d.config.PassivMode {
+			return
 		}
 		log.V(5).Infof("DHT processing %v request", r.Q)
 		switch r.Q {
