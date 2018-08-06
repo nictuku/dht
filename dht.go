@@ -180,7 +180,7 @@ func New(config *Config) (node *DHT, err error) {
 	node = &DHT{
 		config:               cfg,
 		routingTable:         newRoutingTable(),
-		peerStore:            newPeerStore(cfg.MaxInfoHashes, cfg.MaxInfoHashPeers),
+		peerStore:            newPeerStore(cfg.MaxInfoHashes, cfg.MaxInfoHashPeers, cfg.MaxNodes),
 		PeersRequestResults:  make(chan map[InfoHash][]string, 1),
 		stop:                 make(chan bool),
 		exploredNeighborhood: false,
@@ -510,6 +510,10 @@ func (d *DHT) loop() {
 func (d *DHT) needMoreNodes() bool {
 	n := d.routingTable.numNodes()
 	return n < minNodes || n*2 < d.config.MaxNodes
+}
+
+func (d *DHT) GetNumNodes() int {
+        return d.routingTable.numNodes()
 }
 
 func (d *DHT) needMorePeers(ih InfoHash) bool {

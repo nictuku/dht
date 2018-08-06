@@ -124,12 +124,13 @@ func (p *peerContactsSet) Alive() int {
 	return ret
 }
 
-func newPeerStore(maxInfoHashes, maxInfoHashPeers int) *peerStore {
+func newPeerStore(maxInfoHashes, maxInfoHashPeers, maxNodes int) *peerStore {
 	return &peerStore{
 		infoHashPeers:        lru.New(maxInfoHashes),
 		localActiveDownloads: make(map[InfoHash]bool),
 		maxInfoHashes:        maxInfoHashes,
 		maxInfoHashPeers:     maxInfoHashPeers,
+		maxNodes:             maxNodes,
 	}
 }
 
@@ -141,6 +142,7 @@ type peerStore struct {
 	localActiveDownloads map[InfoHash]bool
 	maxInfoHashes        int
 	maxInfoHashPeers     int
+	maxNodes             int
 }
 
 func (h *peerStore) get(ih InfoHash) *peerContactsSet {

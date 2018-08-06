@@ -206,6 +206,12 @@ func (r *routingTable) cleanup(cleanupPeriod time.Duration, p *peerStore) (needP
 			r.kill(n, p)
 			continue
 		}
+                // kill old and currently unused nodes if nodeCount is > maxNodes
+                if len(r.addresses) > p.maxNodes && time.Since(n.createTime) > cleanupPeriod && len(n.pendingQueries) == 0 {
+                        log.V(4).Infof("DHT: Old node with 0 pendingQueries. Deleting")
+                        r.kill(n, p)
+                        continue
+                }
 		if n.reachable {
 			if len(n.pendingQueries) == 0 {
 				goto PING
