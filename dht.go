@@ -74,6 +74,8 @@ type Config struct {
 	//  If true, the node will read the routing table from disk on startup and save routing
 	//  table snapshots on disk every few minutes. Default value: true.
 	SaveRoutingTable bool
+	// do not reply to any incoming queries
+	PassiveMode bool
 	// How often to save the routing table to disk. Default value: 5 minutes.
 	SavePeriod time.Duration
 	// Maximum packets per second to be processed. Disabled if negative. Default value: 100.
@@ -93,6 +95,9 @@ type Config struct {
 	ThrottlerTrackedClients int64
 	//Protocol for UDP connections, udp4= IPv4, udp6 = IPv6
 	UDPProto string
+	// Maximum get_peer requests per infoHash to prevent infinity loop in case NumTargetPeers is set 
+	// real high. This is only usefull in crawler mode, since hashes will expire via MaxInfoHashes
+	MaxSearchQueries int
 }
 
 // Creates a *Config populated with default values.
@@ -101,10 +106,11 @@ func NewConfig() *Config {
 		Address:                 "",
 		Port:                    0, // Picks a random port.
 		NumTargetPeers:          5,
-		DHTRouters:              "router.magnets.im:6881,router.bittorrent.com:6881,dht.transmissionbt.com:6881",
+		DHTRouters:              "router.magnets.im:6881,router.bittorrent.com:6881,dht.transmissionbt.com:6881,router.utorrent.com:6881,dht.aelitis.com:6881,dht.libtorrent.org:25401",
 		MaxNodes:                500,
 		CleanupPeriod:           15 * time.Minute,
 		SaveRoutingTable:        true,
+		PassiveMode:             false,
 		SavePeriod:              5 * time.Minute,
 		RateLimit:               100,
 		MaxInfoHashes:           2048,
@@ -112,6 +118,7 @@ func NewConfig() *Config {
 		ClientPerMinuteLimit:    50,
 		ThrottlerTrackedClients: 1000,
 		UDPProto:                "udp4",
+		MaxSearchQueries:        -1,
 	}
 }
 
@@ -180,7 +187,7 @@ func New(config *Config) (node *DHT, err error) {
 	node = &DHT{
 		config:               cfg,
 		routingTable:         newRoutingTable(),
-		peerStore:            newPeerStore(cfg.MaxInfoHashes, cfg.MaxInfoHashPeers),
+		peerStore:            newPeerStore(cfg.MaxInfoHashes, cfg.MaxInfoHashPeers, cfg.MaxNodes),
 		PeersRequestResults:  make(chan map[InfoHash][]string, 1),
 		stop:                 make(chan bool),
 		exploredNeighborhood: false,
@@ -563,7 +570,7 @@ func (d *DHT) processPacket(p packetType) {
 	}
 	r, err := readResponse(p)
 	if err != nil {
-		log.Warningf("DHT: readResponse Error: %v, %q", err, string(p.b))
+		//log.Warningf("DHT: readResponse Error: %v, %q", err, string(p.b))
 		return
 	}
 	switch {
@@ -651,6 +658,10 @@ func (d *DHT) processPacket(p packetType) {
 				d.ping(addr)
 			}
 		}
+		// don't reply to any queries if in passiveMode
+		if d.config.PassiveMode {
+			return
+		}
 		log.V(5).Infof("DHT processing %v request", r.Q)
 		switch r.Q {
 		case "ping":
@@ -693,6 +704,10 @@ func (d *DHT) getPeersFrom(r *remoteNode, ih InfoHash) {
 		return
 	}
 	totalSentGetPeers.Add(1)
+	cnt := d.peerStore.addSearchCount(ih)
+	if d.config.MaxSearchQueries > 0 && cnt > d.config.MaxSearchQueries {
+		return
+	}
 	ty := "get_peers"
 	transId := r.newQuery(ty)
 	if _, ok := r.pendingQueries[transId]; ok {

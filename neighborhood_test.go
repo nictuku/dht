@@ -51,7 +51,7 @@ func TestUpkeep(t *testing.T) {
 		// there should be no sign of them later on.
 		n := randNodeId()
 		n[0] = byte(0x3d) // Ensure long distance.
-		r.neighborhoodUpkeep(genremoteNode(string(n)), "udp", newPeerStore(0, 0))
+		r.neighborhoodUpkeep(genremoteNode(string(n)), "udp", newPeerStore(0, 0, 0))
 	}
 
 	// Current state: 8 neighbors with low proximity.
@@ -59,7 +59,7 @@ func TestUpkeep(t *testing.T) {
 	// Adds 7 neighbors from the static table. They should replace the
 	// random ones, except for one.
 	for _, v := range table[1:8] {
-		r.neighborhoodUpkeep(genremoteNode(v.rid), "udp", newPeerStore(0, 0))
+		r.neighborhoodUpkeep(genremoteNode(v.rid), "udp", newPeerStore(0, 0, 0))
 	}
 
 	// Current state: 7 close neighbors, one distant dude.
@@ -80,7 +80,7 @@ func TestUpkeep(t *testing.T) {
 	if r.boundaryNode == nil {
 		t.Fatalf("tried to kill nil boundary node")
 	}
-	r.kill(r.boundaryNode, newPeerStore(0, 0))
+	r.kill(r.boundaryNode, newPeerStore(0, 0, 0))
 
 	// The resulting boundary neighbor should now be one from the static
 	// table, with high proximity.
