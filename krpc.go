@@ -9,10 +9,14 @@ import (
 	"net"
 	"strconv"
 	"time"
+	"sync"
 
 	log "github.com/golang/glog"
 	bencode "github.com/jackpal/bencode-go"
 	"github.com/nictuku/nettools"
+
+	"github.com/kavu/go_reuseport"
+	mrand "math/rand"
 )
 
 // Search a node again after some time.
@@ -20,6 +24,7 @@ var searchRetryPeriod = 15 * time.Second
 
 // Owned by the DHT engine.
 type remoteNode struct {
+	sync.RWMutex
 	address net.UDPAddr
 	// addressDotFormatted contains a binary representation of the node's host:port address.
 	addressBinaryFormat string
@@ -32,6 +37,7 @@ type remoteNode struct {
 	pendingQueries   map[string]*queryType // key: transaction ID
 	pastQueries      map[string]*queryType // key: transaction ID
 	reachable        bool
+	createTime       time.Time
 	lastResponseTime time.Time
 	lastSearchTime   time.Time
 	ActiveDownloads  []string // List of infohashes we know this peer is downloading.
@@ -44,12 +50,14 @@ func newRemoteNode(addr net.UDPAddr, id string) *remoteNode {
 		lastQueryID:         newTransactionId(),
 		id:                  id,
 		reachable:           false,
+		createTime:          time.Now(),
 		pendingQueries:      map[string]*queryType{},
 		pastQueries:         map[string]*queryType{},
 	}
 }
 
 type queryType struct {
+	sync.RWMutex
 	Type    string
 	ih      InfoHash
 	srcNode string
@@ -164,16 +172,27 @@ type responseType struct {
 }
 
 // sendMsg bencodes the data in 'query' and sends it to the remote node.
-func sendMsg(conn *net.UDPConn, raddr net.UDPAddr, query interface{}) {
+func sendMsg(conn []*net.UDPConn, raddr net.UDPAddr, query interface{}) {
 	totalSent.Add(1)
 	var b bytes.Buffer
 	if err := bencode.Marshal(&b, query); err != nil {
 		return
 	}
-	if n, err := conn.WriteToUDP(b.Bytes(), &raddr); err != nil {
+/*
+	for _, conn := range conn {
+		if n, err := conn.WriteToUDP(b.Bytes(), &raddr); err != nil {
+			log.V(3).Infof("DHT: node write failed to %+v, error=%s", raddr, err)
+		} else {
+			totalWrittenBytes.Add(int64(n))
+			return
+		}
+	}
+*/
+	if n, err := conn[mrand.Intn(len(conn))].WriteToUDP(b.Bytes(), &raddr); err != nil {
 		log.V(3).Infof("DHT: node write failed to %+v, error=%s", raddr, err)
 	} else {
 		totalWrittenBytes.Add(int64(n))
+		return
 	}
 	return
 }
@@ -217,9 +236,11 @@ type packetType struct {
 
 func listen(addr string, listenPort int, proto string) (socket *net.UDPConn, err error) {
 	log.V(3).Infof("DHT: Listening for peers on IP: %s port: %d Protocol=%s\n", addr, listenPort, proto)
-	listener, err := net.ListenPacket(proto, addr+":"+strconv.Itoa(listenPort))
+	//listener, err := net.ListenPacket(proto, addr+":"+strconv.Itoa(listenPort))
+	listener, err := reuseport.ListenPacket(proto, addr+":"+strconv.Itoa(listenPort))
 	if err != nil {
 		log.V(3).Infof("DHT: Listen failed:", err)
+		fmt.Printf("DHT: Listen failed: %v\n", err)
 	}
 	if listener != nil {
 		socket = listener.(*net.UDPConn)
@@ -228,8 +249,11 @@ func listen(addr string, listenPort int, proto string) (socket *net.UDPConn, err
 }
 
 // Read from UDP socket, writes slice of byte into channel.
-func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena arena, stop chan bool) {
+func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena arena, stop chan bool, i int) {
+//func readFromSocket(socket *net.UDPConn, conChan chan packetType, stop chan bool, i int) {
+	//b := make([]byte, maxUDPPacketSize)
 	for {
+		log.V(4).Infof("DHT: readFromSocket %d\n",i)
 		b := bytesArena.Pop()
 		n, addr, err := socket.ReadFromUDP(b)
 		if err != nil {
@@ -239,8 +263,12 @@ func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena are
 		if n == maxUDPPacketSize {
 			log.V(3).Infof("DHT: Warning. Received packet with len >= %d, some data may have been discarded.\n", maxUDPPacketSize)
 		}
+		//fmt.Printf("DHT: readFromSocket %d %d\n",i,int64(n))
 		totalReadBytes.Add(int64(n))
+		//b2 := make([]byte, maxUDPPacketSize)
+		//copy(b2, b)
 		if n > 0 && err == nil {
+			//p := packetType{b2[:n], *addr}
 			p := packetType{b, *addr}
 			select {
 			case conChan <- p:

@@ -31,7 +31,7 @@ func ExampleDHT() {
 		return
 	}
 
-	infoHash, err := DecodeInfoHash("d1c5676ae7ac98e8b19f63565905105e3c4c37a2")
+	infoHash, err := DecodeInfoHash("c3c5fe05c329ae51c6eca464f6b30ba0a457b2ca")
 	if err != nil {
 		fmt.Printf("DecodeInfoHash faiure: %v", err)
 		return
@@ -63,7 +63,7 @@ M:
 			//	fmt.Println(DecodePeerAddress(peer))
 			//}
 
-			if fmt.Sprintf("%x", ih) == "d1c5676ae7ac98e8b19f63565905105e3c4c37a2" {
+			if fmt.Sprintf("%x", ih) == "c3c5fe05c329ae51c6eca464f6b30ba0a457b2ca" {
 				fmt.Println("Peer found for the requested infohash or the test was skipped")
 				return
 			}
@@ -122,7 +122,7 @@ func TestDHTLocal(t *testing.T) {
 		return
 	}
 	searchRetryPeriod = time.Second
-	infoHash, err := DecodeInfoHash("d1c5676ae7ac98e8b19f63565905105e3c4c37a2")
+	infoHash, err := DecodeInfoHash("c3c5fe05c329ae51c6eca464f6b30ba0a457b2ca")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

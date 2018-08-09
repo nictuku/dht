@@ -10,7 +10,7 @@ func TestPeerStorage(t *testing.T) {
 		t.Fatalf("DecodeInfoHash: %v", err)
 	}
 	// Allow 1 IH and 2 peers.
-	p := newPeerStore(1, 2)
+	p := newPeerStore(1, 2, 5000)
 
 	if ok := p.addContact(ih, "abcedf"); !ok {
 		t.Fatalf("addContact(1/2) expected true, got false")
