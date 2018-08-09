@@ -127,11 +127,11 @@ func (p *peerContactsSet) Alive() int {
 	return ret
 }
 
-func newPeerStore(maxInfoHashes, maxInfoHashPeers, maxNodes int) *peerStore {
+func newPeerStore(maxInfoHashes, maxInfoHashPeers, maxNodes int, SearchCntExpire time.Duration) *peerStore {
 	return &peerStore{
 		infoHashPeers:        lru.New(maxInfoHashes),
 		localActiveDownloads: make(map[InfoHash]bool),
-		searchCount:          cache.New(10*time.Minute, 5*time.Minute),
+		searchCount:          cache.New(SearchCntExpire, time.Duration(SearchCntExpire/2)),
 		maxInfoHashes:        maxInfoHashes,
 		maxInfoHashPeers:     maxInfoHashPeers,
 		maxNodes:             maxNodes,

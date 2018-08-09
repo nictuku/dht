@@ -2,6 +2,7 @@ package dht
 
 import (
 	"testing"
+	"time"
 )
 
 func TestPeerStorage(t *testing.T) {
@@ -10,7 +11,7 @@ func TestPeerStorage(t *testing.T) {
 		t.Fatalf("DecodeInfoHash: %v", err)
 	}
 	// Allow 1 IH and 2 peers.
-	p := newPeerStore(1, 2, 0)
+	p := newPeerStore(1, 2, 0, 10 * time.Minute)
 
 	if ok := p.addContact(ih, "abcedf"); !ok {
 		t.Fatalf("addContact(1/2) expected true, got false")

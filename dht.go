@@ -96,8 +96,10 @@ type Config struct {
 	//Protocol for UDP connections, udp4= IPv4, udp6 = IPv6
 	UDPProto string
 	// Maximum get_peer requests per infoHash to prevent infinity loop in case NumTargetPeers is set 
-	// real high. Counter will expire/reset after 10 Minutes
+	// real high. 
 	MaxSearchQueries int
+	// MaxSearchQueries counter will be reset after that time
+	SearchCntExpire time.Duration
 }
 
 // Creates a *Config populated with default values.
@@ -119,6 +121,7 @@ func NewConfig() *Config {
 		ThrottlerTrackedClients: 1000,
 		UDPProto:                "udp4",
 		MaxSearchQueries:        -1,
+		SearchCntExpire:         10 * time.Minute,
 	}
 }
 
@@ -187,7 +190,7 @@ func New(config *Config) (node *DHT, err error) {
 	node = &DHT{
 		config:               cfg,
 		routingTable:         newRoutingTable(),
-		peerStore:            newPeerStore(cfg.MaxInfoHashes, cfg.MaxInfoHashPeers, cfg.MaxNodes),
+		peerStore:            newPeerStore(cfg.MaxInfoHashes, cfg.MaxInfoHashPeers, cfg.MaxNodes, cfg.SearchCntExpire),
 		PeersRequestResults:  make(chan map[InfoHash][]string, 1),
 		stop:                 make(chan bool),
 		exploredNeighborhood: false,
