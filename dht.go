@@ -97,6 +97,8 @@ type Config struct {
 	UDPProto string
 	// max get_peer requests per hash to prevent infinity loop
 	MaxSearchQueries int
+  // number of concurrent listeners on same port
+	ConnPoolSize int
 }
 
 // Creates a *Config populated with default values.
@@ -118,6 +120,7 @@ func NewConfig() *Config {
 		ThrottlerTrackedClients: 1000,
 		UDPProto:                "udp4",
 		MaxSearchQueries:        1000,
+		ConnPoolSize:            1,
 	}
 }
 
@@ -155,7 +158,7 @@ type DHT struct {
 	config                 Config
 	routingTable           *routingTable
 	peerStore              *peerStore
-	conn                   *net.UDPConn
+	conn                   []*net.UDPConn
 	Logger                 Logger
 	exploredNeighborhood   bool
 	remoteNodeAcquaintance chan string
@@ -345,14 +348,18 @@ func (d *DHT) Run() error {
 // initSocket initializes the udp socket
 // listening to incoming dht requests
 func (d *DHT) initSocket() (err error) {
-	d.conn, err = listen(d.config.Address, d.config.Port, d.config.UDPProto)
-	if err != nil {
-		return err
-	}
+	for i := 1; i <= d.config.ConnPoolSize ; i++ {
+		//d.conn[i], err = listen(d.config.Address, d.config.Port, d.config.UDPProto)
+		conn, err := listen(d.config.Address, d.config.Port, d.config.UDPProto)
+		if err != nil {
+			return err
+		}
 
-	// Update the stored port number in case it was set 0, meaning it was
-	// set automatically by the system
-	d.config.Port = d.conn.LocalAddr().(*net.UDPAddr).Port
+		d.conn = append(d.conn,conn)
+		// Update the stored port number in case it was set 0, meaning it was
+		// set automatically by the system
+		d.config.Port = conn.LocalAddr().(*net.UDPAddr).Port
+	}
 	return nil
 }
 
@@ -371,26 +378,50 @@ func (d *DHT) bootstrap() {
 	d.getMorePeers(nil)
 }
 
+func (d *DHT) chanProcessPacket (socketChan chan packetType, bytesArena arena,i int) {
+		fmt.Printf("chanProcessPacket %d\n",i);
+	for p := range socketChan {
+	//for {
+	//select {
+	//case p := <-socketChan:
+		fmt.Printf("process pakcet %d\n",i);
+		totalRecv.Add(1)
+		d.processPacket(p)
+		bytesArena.Push(p.b)
+	//}
+	}
+}
+
 // loop is the main working section of dht.
 // It bootstraps a routing table, if necessary,
 // and listens for incoming DHT requests until d.Stop()
 // is called from another go routine.
 func (d *DHT) loop() {
 	// Close socket
-	defer d.conn.Close()
+	for _, conn:= range d.conn {
+		defer conn.Close()
+	}
 
 	// There is goroutine pushing and one popping items out of the arena.
 	// One passes work to the other. So there is little contention in the
 	// arena, so it doesn't need many items (it used to have 500!). If
 	// readFromSocket or the packet processing ever need to be
 	// parallelized, this would have to be bumped.
-	bytesArena := newArena(maxUDPPacketSize, 3)
-	socketChan := make(chan packetType)
-	d.wg.Add(1)
-	go func() {
-		defer d.wg.Done()
-		readFromSocket(d.conn, socketChan, bytesArena, d.stop)
-	}()
+	bytesArena := newArena(maxUDPPacketSize, 3*d.config.ConnPoolSize)
+	//socketChan := make(chan packetType,10000)
+	var socketChan [100]chan packetType
+	d.wg.Add(d.config.ConnPoolSize)
+	for i, conn := range d.conn {
+		socketChan[i] = make(chan packetType)
+		go func(i int) {
+			defer d.wg.Done()
+			readFromSocket(conn, socketChan[i], bytesArena, d.stop, i)
+		}(i)
+		go func(i int) {
+			defer d.wg.Done()
+			d.chanProcessPacket(socketChan[i], bytesArena, i)
+		}(i)
+	}
 
 	d.bootstrap()
 
@@ -409,7 +440,7 @@ func (d *DHT) loop() {
 		log.Warning("rate limiting disabled")
 	} else {
 		// Token bucket for limiting the number of packets per second.
-		fillTokenBucket = time.Tick(time.Second / 10)
+		//fillTokenBucket = time.Tick(time.Second / 10)
 		if d.config.RateLimit > 0 && d.config.RateLimit < 10 {
 			// Less than 10 leads to rounding problems.
 			d.config.RateLimit = 10
@@ -464,10 +495,12 @@ func (d *DHT) loop() {
 					break L
 				}
 			}
+			d.routingTable.Lock()
 			for ih, _ := range m {
 				d.findNode(string(ih))
 			}
-
+			d.routingTable.Unlock()
+/*
 		case p := <-socketChan:
 			totalRecv.Add(1)
 			if d.config.RateLimit > 0 {
@@ -482,12 +515,13 @@ func (d *DHT) loop() {
 				d.processPacket(p)
 			}
 			bytesArena.Push(p.b)
-
+*/
 		case <-fillTokenBucket:
 			if tokenBucket < d.config.RateLimit {
 				tokenBucket += d.config.RateLimit / 10
 			}
 		case <-cleanupTicker:
+			d.routingTable.Lock()
 			needPing := d.routingTable.cleanup(d.config.CleanupPeriod, d.peerStore)
 			d.wg.Add(1)
 			go func() {
@@ -497,6 +531,7 @@ func (d *DHT) loop() {
 			if d.needMoreNodes() {
 				d.bootstrap()
 			}
+			d.routingTable.Unlock()
 		case node := <-d.pingRequest:
 			d.pingNode(node)
 		case <-secretRotateTicker:
@@ -504,11 +539,13 @@ func (d *DHT) loop() {
 		case d.portRequest <- d.config.Port:
 			continue
 		case <-saveTicker:
+			d.routingTable.Lock()
 			tbl := d.routingTable.reachableNodes()
 			if len(tbl) > 5 {
 				d.store.Remotes = tbl
 				saveStore(*d.store)
 			}
+			d.routingTable.Unlock()
 		}
 	}
 }
@@ -576,6 +613,8 @@ func (d *DHT) processPacket(p packetType) {
 		//log.Warningf("DHT: readResponse Error: %v, %q", err, string(p.b))
 		return
 	}
+	d.routingTable.Lock()
+	defer d.routingTable.Unlock()
 	switch {
 	// Response.
 	case r.Y == "r":
@@ -694,10 +733,12 @@ func (d *DHT) ping(address string) {
 
 func (d *DHT) pingNode(r *remoteNode) {
 	log.V(3).Infof("DHT: ping => %+v", r.address)
-	t := r.newQuery("ping")
+	r.Lock()
+	t := r.newQuery("pine")
 
 	queryArguments := map[string]interface{}{"id": d.nodeId}
 	query := queryMessage{t, "q", "ping", queryArguments}
+	r.Unlock()
 	sendMsg(d.conn, r.address, query)
 	totalSentPing.Add(1)
 }
@@ -706,6 +747,7 @@ func (d *DHT) getPeersFrom(r *remoteNode, ih InfoHash) {
 	if r == nil {
 		return
 	}
+	r.Lock()
 	totalSentGetPeers.Add(1)
 	cnt := d.peerStore.addSearchCount(ih)
 	if d.config.MaxSearchQueries > 0 && cnt > d.config.MaxSearchQueries {
@@ -728,6 +770,7 @@ func (d *DHT) getPeersFrom(r *remoteNode, ih InfoHash) {
 		log.V(3).Infof("DHT sending get_peers. nodeID: %x@%v, InfoHash: %x , distance: %x", r.id, r.address, ih, x)
 	}
 	r.lastSearchTime = time.Now()
+	r.Unlock()
 	sendMsg(d.conn, r.address, query)
 }
 
@@ -735,6 +778,7 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 	if r == nil {
 		return
 	}
+	r.Lock()
 	totalSentFindNode.Add(1)
 	ty := "find_node"
 	transId := r.newQuery(ty)
@@ -755,6 +799,7 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 		log.V(3).Infof("DHT sending find_node. nodeID: %x@%v, target ID: %x , distance: %x", r.id, r.address, id, x)
 	}
 	r.lastSearchTime = time.Now()
+	r.Unlock()
 	sendMsg(d.conn, r.address, query)
 }
 
@@ -769,7 +814,9 @@ func (d *DHT) announcePeer(address net.UDPAddr, ih InfoHash, token string) {
 	}
 	ty := "announce_peer"
 	log.V(3).Infof("DHT: announce_peer => address: %v, ih: %x, token: %x", address, ih, token)
+	r.Lock()
 	transId := r.newQuery(ty)
+	r.Unlock()
 	queryArguments := map[string]interface{}{
 		"id":        d.nodeId,
 		"info_hash": ih,

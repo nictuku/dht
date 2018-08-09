@@ -2,6 +2,7 @@ package dht
 
 import (
 	log "github.com/golang/glog"
+	"sync"
 )
 
 // DHT routing using a binary tree and no buckets.
@@ -41,6 +42,7 @@ import (
 // even show on the CPU profiling anymore.
 
 type nTree struct {
+	sync.RWMutex
 	zero, one *nTree
 	value     *remoteNode
 }
@@ -211,6 +213,8 @@ func (n *nTree) isOK(ih InfoHash) bool {
 		return false
 	}
 	r := n.value
+	r.Lock()
+	defer r.Unlock()
 
 	if len(r.pendingQueries) > maxNodePendingQueries {
 		log.V(3).Infof("DHT: Skipping because there are too many queries pending for this dude.")
