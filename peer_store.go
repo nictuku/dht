@@ -128,6 +128,7 @@ func newPeerStore(maxInfoHashes, maxInfoHashPeers, maxNodes int) *peerStore {
 	return &peerStore{
 		infoHashPeers:        lru.New(maxInfoHashes),
 		localActiveDownloads: make(map[InfoHash]bool),
+		searchCount:          make(map[InfoHash]int),
 		maxInfoHashes:        maxInfoHashes,
 		maxInfoHashPeers:     maxInfoHashPeers,
 		maxNodes:             maxNodes,
@@ -140,6 +141,7 @@ type peerStore struct {
 	infoHashPeers *lru.Cache
 	// infoHashes for which we are peers.
 	localActiveDownloads map[InfoHash]bool
+	searchCount          map[InfoHash]int
 	maxInfoHashes        int
 	maxInfoHashPeers     int
 	maxNodes             int
@@ -226,4 +228,10 @@ func (h *peerStore) hasLocalDownload(ih InfoHash) bool {
 	_, ok := h.localActiveDownloads[ih]
 	log.V(3).Infof("hasLocalDownload for %x: %v", ih, ok)
 	return ok
+}
+
+func (h *peerStore) addSearchCount(ih InfoHash) int {
+	h.searchCount[ih]++
+	log.V(3).Infof("searchCount %x: %d", ih, h.searchCount[ih])
+	return h.searchCount[ih]
 }

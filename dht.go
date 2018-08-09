@@ -95,6 +95,8 @@ type Config struct {
 	ThrottlerTrackedClients int64
 	//Protocol for UDP connections, udp4= IPv4, udp6 = IPv6
 	UDPProto string
+	// max get_peer requests per hash to prevent infinity loop
+	MaxSearchQueries int
 }
 
 // Creates a *Config populated with default values.
@@ -115,6 +117,7 @@ func NewConfig() *Config {
 		ClientPerMinuteLimit:    50,
 		ThrottlerTrackedClients: 1000,
 		UDPProto:                "udp4",
+		MaxSearchQueries:        1000,
 	}
 }
 
@@ -570,7 +573,7 @@ func (d *DHT) processPacket(p packetType) {
 	}
 	r, err := readResponse(p)
 	if err != nil {
-		log.Warningf("DHT: readResponse Error: %v, %q", err, string(p.b))
+		//log.Warningf("DHT: readResponse Error: %v, %q", err, string(p.b))
 		return
 	}
 	switch {
@@ -704,6 +707,10 @@ func (d *DHT) getPeersFrom(r *remoteNode, ih InfoHash) {
 		return
 	}
 	totalSentGetPeers.Add(1)
+	cnt := d.peerStore.addSearchCount(ih)
+	if d.config.MaxSearchQueries > 0 && cnt > d.config.MaxSearchQueries {
+		return
+	}
 	ty := "get_peers"
 	transId := r.newQuery(ty)
 	if _, ok := r.pendingQueries[transId]; ok {
