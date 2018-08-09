@@ -96,7 +96,7 @@ type Config struct {
 	//Protocol for UDP connections, udp4= IPv4, udp6 = IPv6
 	UDPProto string
 	// Maximum get_peer requests per infoHash to prevent infinity loop in case NumTargetPeers is set 
-	// real high. This is only usefull in crawler mode, since hashes will expire via MaxInfoHashes
+	// real high. Counter will expire/reset after 10 Minutes
 	MaxSearchQueries int
 }
 
@@ -704,6 +704,7 @@ func (d *DHT) getPeersFrom(r *remoteNode, ih InfoHash) {
 		return
 	}
 	totalSentGetPeers.Add(1)
+	// if MaxSearchQueries is set and reached, don't send new get_peers
 	cnt := d.peerStore.addSearchCount(ih)
 	if d.config.MaxSearchQueries > 0 && cnt > d.config.MaxSearchQueries {
 		return
