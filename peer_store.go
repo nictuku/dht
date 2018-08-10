@@ -235,9 +235,9 @@ func (h *peerStore) hasLocalDownload(ih InfoHash) bool {
 
 // count the number of get_peer requests per hash
 func (h *peerStore) addSearchCount(ih InfoHash) int {
-	cnt, found := h.searchCount.IncrementInt(string(ih),1)
+	cnt, err := h.searchCount.IncrementInt(string(ih),1)
 	count := 1
-	if found != nil {
+	if err == nil {
 		count = cnt
 	} else {
 		h.searchCount.Set(string(ih),int(1),cache.DefaultExpiration)
