@@ -100,6 +100,9 @@ type Config struct {
 	MaxSearchQueries int
 	// MaxSearchQueries counter will be reset after that time
 	SearchCntExpire time.Duration
+	// If a node replies to get_peer requests for more than MaxNodeDownloads different InfoHashes it's
+	// spammy and we blacklist it
+	MaxNodeDownloads int
 }
 
 // Creates a *Config populated with default values.
@@ -122,6 +125,7 @@ func NewConfig() *Config {
 		UDPProto:                "udp4",
 		MaxSearchQueries:        -1,
 		SearchCntExpire:         10 * time.Minute,
+		MaxNodeDownloads:        -1,
 	}
 }
 
@@ -945,10 +949,22 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 			peers = append(peers, peerContact)
 		}
 		if len(peers) > 0 {
+			if !node.activeDownloads[query.ih] {
+				node.activeDownloads[query.ih] = true
+			}
+			// If a node replies to get_peer requests for more than 
+			// MaxNodeDownloads different InfoHashes it's spammy 
+			// and we ignore it
+			if d.config.MaxNodeDownloads > 0 && len(node.activeDownloads) > d.config.MaxNodeDownloads {
+				log.Warningf("killing spammy node %s with activeDownloads: %d\n", nettools.BinaryToDottedPort(node.addressBinaryFormat), len(node.activeDownloads))
+				d.routingTable.addBadNode(node.address.String())
+				d.routingTable.kill(node, d.peerStore)
+				return
+			}
 			// Finally, new peers.
 			result := map[InfoHash][]string{query.ih: peers}
 			totalPeers.Add(int64(len(peers)))
-			log.V(2).Infof("DHT: processGetPeerResults, totalPeers: %v", totalPeers.String())
+			log.V(2).Infof("DHT: processGetPeerResults, %s peers: %d, totalPeers: %v from %s", query.ih, len(peers), totalPeers.String(),nettools.BinaryToDottedPort(node.addressBinaryFormat))
 			select {
 			case d.PeersRequestResults <- result:
 			case <-d.stop:

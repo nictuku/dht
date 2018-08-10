@@ -35,7 +35,7 @@ type remoteNode struct {
 	createTime       time.Time
 	lastResponseTime time.Time
 	lastSearchTime   time.Time
-	ActiveDownloads  []string // List of infohashes we know this peer is downloading.
+	activeDownloads  map[InfoHash]bool // List of infohashes we know this peer is downloading.
 }
 
 func newRemoteNode(addr net.UDPAddr, id string) *remoteNode {
@@ -48,6 +48,7 @@ func newRemoteNode(addr net.UDPAddr, id string) *remoteNode {
 		createTime:          time.Now(),
 		pendingQueries:      map[string]*queryType{},
 		pastQueries:         map[string]*queryType{},
+		activeDownloads:     make(map[InfoHash]bool),
 	}
 }
 

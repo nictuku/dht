@@ -17,6 +17,7 @@ func newRoutingTable() *routingTable {
 		"",
 		nil,
 		0,
+		make(map[string]bool),
 	}
 }
 
@@ -33,6 +34,9 @@ type routingTable struct {
 	boundaryNode *remoteNode
 	// How many prefix bits are shared between boundaryNode and nodeId.
 	proximity int
+
+	// blacklist of bad nodes in host:port format as key
+	badNodes map[string]bool
 }
 
 // hostPortToNode finds a node based on the specified hostPort specification,
@@ -138,6 +142,9 @@ func (r *routingTable) insert(node *remoteNode, proto string) error {
 	if existed {
 		return nil // fmt.Errorf("node already existed in routing table: %v", node.address.String())
 	}
+	if r.isBadNode(addr) {
+		return nil
+	}
 	r.addresses[addr] = node
 	// We don't know the ID of all nodes.
 	if !bogusId(node.id) {
@@ -178,6 +185,20 @@ func (r *routingTable) kill(n *remoteNode, p *peerStore) {
 	}
 	p.killContact(nettools.BinaryToDottedPort(n.addressBinaryFormat))
 }
+
+// add address to node blacklist
+func (r *routingTable) addBadNode(address string) {
+        log.V(3).Infof("addBadNode for %v: true", address)
+        r.badNodes[address] = true
+}
+
+// check if address is on blacklist
+func (r *routingTable) isBadNode(address string) bool {
+        _, ok := r.badNodes[address]
+        log.V(5).Infof("isBadNode for %v: %v", address, ok)
+        return ok
+}
+
 
 func (r *routingTable) resetNeighborhoodBoundary() {
 	r.proximity = 0
