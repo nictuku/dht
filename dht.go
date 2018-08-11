@@ -88,7 +88,7 @@ type Config struct {
 	// single peer contact typically consumes 6 bytes. Default value: 256.
 	MaxInfoHashPeers int
 	// ClientPerMinuteLimit protects against spammy clients. Ignore their requests if exceeded
-	// this number of packets per minute. Default value: 50.
+	// this number of packets per minute. Default value: 50. (0 to disable)
 	ClientPerMinuteLimit int
 	// ThrottlerTrackedClients is the number of hosts the client throttler remembers. An LRU is used to
 	// track the most interesting ones. Default value: 1000.
@@ -564,11 +564,6 @@ func (d *DHT) helloFromPeer(addr string) {
 
 func (d *DHT) processPacket(p packetType) {
 	log.V(5).Infof("DHT processing packet from %v", p.raddr.String())
-	if !d.clientThrottle.CheckBlock(p.raddr.IP.String()) {
-		totalPacketsFromBlockedHosts.Add(1)
-		log.V(5).Infof("Node exceeded rate limiter. Dropping packet.")
-		return
-	}
 	if p.b[0] != 'd' {
 		// Malformed DHT packet. There are protocol extensions out
 		// there that we don't support or understand.
@@ -650,6 +645,11 @@ func (d *DHT) processPacket(p packetType) {
 			log.V(3).Infof("DHT: Unknown query id: %v", r.T)
 		}
 	case r.Y == "q":
+		if d.config.ClientPerMinuteLimit > 0 && !d.clientThrottle.CheckBlock(p.raddr.IP.String()) {
+			totalPacketsFromBlockedHosts.Add(1)
+			log.V(5).Infof("Node exceeded rate limiter. Dropping packet.")
+			return
+		}
 		if r.A.Id == d.nodeId {
 			log.V(3).Infof("DHT received packet from self, id %x", r.A.Id)
 			return
@@ -710,12 +710,12 @@ func (d *DHT) getPeersFrom(r *remoteNode, ih InfoHash) {
 	if r == nil {
 		return
 	}
-	totalSentGetPeers.Add(1)
 	// if MaxSearchQueries is set and reached, don't send new get_peers
 	cnt := d.peerStore.addSearchCount(ih)
 	if d.config.MaxSearchQueries > 0 && cnt > d.config.MaxSearchQueries {
 		return
 	}
+	totalSentGetPeers.Add(1)
 	ty := "get_peers"
 	transId := r.newQuery(ty)
 	if _, ok := r.pendingQueries[transId]; ok {
