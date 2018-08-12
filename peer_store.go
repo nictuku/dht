@@ -245,3 +245,7 @@ func (h *peerStore) addSearchCount(ih InfoHash) int {
 	log.V(3).Infof("searchCount %x: %d", ih, count)
 	return count
 }
+
+func (h *peerStore) resetSearchCount(ih InfoHash) {
+	h.searchCount.Delete(string(ih))
+}
