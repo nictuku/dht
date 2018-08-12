@@ -259,6 +259,8 @@ type ihReq struct {
 // is just a router that doesn't downloads torrents.
 func (d *DHT) PeersRequest(ih string, announce bool) {
 	d.peersRequest <- ihReq{InfoHash(ih), announce}
+	// reset searchCount on new request from bt client
+	d.peerStore.resetSearchCount(InfoHash(ih))
 	log.V(2).Infof("DHT: torrent client asking more peers for %x.", ih)
 }
 
