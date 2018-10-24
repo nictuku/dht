@@ -233,7 +233,7 @@ func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena are
 		b := bytesArena.Pop()
 		n, addr, err := socket.ReadFromUDP(b)
 		if err != nil {
-			log.V(3).Infof("DHT: readResponse error:", err)
+			log.V(3).Infof("DHT: readResponse error:%s\n", err)
 		}
 		b = b[0:n]
 		if n == maxUDPPacketSize {
