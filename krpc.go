@@ -219,7 +219,7 @@ func listen(addr string, listenPort int, proto string) (socket *net.UDPConn, err
 	log.V(3).Infof("DHT: Listening for peers on IP: %s port: %d Protocol=%s\n", addr, listenPort, proto)
 	listener, err := net.ListenPacket(proto, addr+":"+strconv.Itoa(listenPort))
 	if err != nil {
-		log.V(3).Infof("DHT: Listen failed:", err)
+		log.V(3).Infof("DHT: Listen failed:%s\n", err)
 	}
 	if listener != nil {
 		socket = listener.(*net.UDPConn)
