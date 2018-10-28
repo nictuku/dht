@@ -74,6 +74,8 @@ type Config struct {
 	//  If true, the node will read the routing table from disk on startup and save routing
 	//  table snapshots on disk every few minutes. Default value: true.
 	SaveRoutingTable bool
+	// do not reply to any incoming queries
+	PassiveMode bool
 	// How often to save the routing table to disk. Default value: 5 minutes.
 	SavePeriod time.Duration
 	// Maximum packets per second to be processed. Disabled if negative. Default value: 100.
@@ -86,13 +88,21 @@ type Config struct {
 	// single peer contact typically consumes 6 bytes. Default value: 256.
 	MaxInfoHashPeers int
 	// ClientPerMinuteLimit protects against spammy clients. Ignore their requests if exceeded
-	// this number of packets per minute. Default value: 50.
+	// this number of packets per minute. Default value: 50. (0 to disable)
 	ClientPerMinuteLimit int
 	// ThrottlerTrackedClients is the number of hosts the client throttler remembers. An LRU is used to
 	// track the most interesting ones. Default value: 1000.
 	ThrottlerTrackedClients int64
 	//Protocol for UDP connections, udp4= IPv4, udp6 = IPv6
 	UDPProto string
+	// Maximum get_peer requests per infoHash to prevent infinity loop in case NumTargetPeers is set 
+	// real high. 
+	MaxSearchQueries int
+	// MaxSearchQueries counter will be reset after that time
+	SearchCntExpire time.Duration
+	// If a node replies to get_peer requests for more than MaxNodeDownloads different InfoHashes it's
+	// spammy and we blacklist it
+	MaxNodeDownloads int
 }
 
 // Creates a *Config populated with default values.
@@ -101,10 +111,11 @@ func NewConfig() *Config {
 		Address:                 "",
 		Port:                    0, // Picks a random port.
 		NumTargetPeers:          5,
-		DHTRouters:              "router.magnets.im:6881,router.bittorrent.com:6881,dht.transmissionbt.com:6881",
+		DHTRouters:              "router.magnets.im:6881,router.bittorrent.com:6881,dht.transmissionbt.com:6881,router.utorrent.com:6881,dht.aelitis.com:6881,dht.libtorrent.org:25401",
 		MaxNodes:                500,
 		CleanupPeriod:           15 * time.Minute,
 		SaveRoutingTable:        true,
+		PassiveMode:             false,
 		SavePeriod:              5 * time.Minute,
 		RateLimit:               100,
 		MaxInfoHashes:           2048,
@@ -112,6 +123,9 @@ func NewConfig() *Config {
 		ClientPerMinuteLimit:    50,
 		ThrottlerTrackedClients: 1000,
 		UDPProto:                "udp4",
+		MaxSearchQueries:        -1,
+		SearchCntExpire:         10 * time.Minute,
+		MaxNodeDownloads:        -1,
 	}
 }
 
@@ -180,7 +194,7 @@ func New(config *Config) (node *DHT, err error) {
 	node = &DHT{
 		config:               cfg,
 		routingTable:         newRoutingTable(),
-		peerStore:            newPeerStore(cfg.MaxInfoHashes, cfg.MaxInfoHashPeers),
+		peerStore:            newPeerStore(cfg.MaxInfoHashes, cfg.MaxInfoHashPeers, cfg.MaxNodes, cfg.SearchCntExpire),
 		PeersRequestResults:  make(chan map[InfoHash][]string, 1),
 		stop:                 make(chan bool),
 		exploredNeighborhood: false,
@@ -245,6 +259,8 @@ type ihReq struct {
 // is just a router that doesn't downloads torrents.
 func (d *DHT) PeersRequest(ih string, announce bool) {
 	d.peersRequest <- ihReq{InfoHash(ih), announce}
+	// reset searchCount on new request from bt client
+	d.peerStore.resetSearchCount(InfoHash(ih))
 	log.V(2).Infof("DHT: torrent client asking more peers for %x.", ih)
 }
 
@@ -550,11 +566,6 @@ func (d *DHT) helloFromPeer(addr string) {
 
 func (d *DHT) processPacket(p packetType) {
 	log.V(5).Infof("DHT processing packet from %v", p.raddr.String())
-	if !d.clientThrottle.CheckBlock(p.raddr.IP.String()) {
-		totalPacketsFromBlockedHosts.Add(1)
-		log.V(5).Infof("Node exceeded rate limiter. Dropping packet.")
-		return
-	}
 	if p.b[0] != 'd' {
 		// Malformed DHT packet. There are protocol extensions out
 		// there that we don't support or understand.
@@ -563,7 +574,7 @@ func (d *DHT) processPacket(p packetType) {
 	}
 	r, err := readResponse(p)
 	if err != nil {
-		log.Warningf("DHT: readResponse Error: %v, %q", err, string(p.b))
+		//log.Warningf("DHT: readResponse Error: %v, %q", err, string(p.b))
 		return
 	}
 	switch {
@@ -636,6 +647,11 @@ func (d *DHT) processPacket(p packetType) {
 			log.V(3).Infof("DHT: Unknown query id: %v", r.T)
 		}
 	case r.Y == "q":
+		if d.config.ClientPerMinuteLimit > 0 && !d.clientThrottle.CheckBlock(p.raddr.IP.String()) {
+			totalPacketsFromBlockedHosts.Add(1)
+			log.V(5).Infof("Node exceeded rate limiter. Dropping packet.")
+			return
+		}
 		if r.A.Id == d.nodeId {
 			log.V(3).Infof("DHT received packet from self, id %x", r.A.Id)
 			return
@@ -650,6 +666,10 @@ func (d *DHT) processPacket(p packetType) {
 			if d.routingTable.length() < d.config.MaxNodes {
 				d.ping(addr)
 			}
+		}
+		// don't reply to any queries if in passiveMode
+		if d.config.PassiveMode {
+			return
 		}
 		log.V(5).Infof("DHT processing %v request", r.Q)
 		switch r.Q {
@@ -690,6 +710,11 @@ func (d *DHT) pingNode(r *remoteNode) {
 
 func (d *DHT) getPeersFrom(r *remoteNode, ih InfoHash) {
 	if r == nil {
+		return
+	}
+	// if MaxSearchQueries is set and reached, don't send new get_peers
+	cnt := d.peerStore.addSearchCount(ih)
+	if d.config.MaxSearchQueries > 0 && cnt > d.config.MaxSearchQueries {
 		return
 	}
 	totalSentGetPeers.Add(1)
@@ -926,10 +951,22 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 			peers = append(peers, peerContact)
 		}
 		if len(peers) > 0 {
+			if !node.activeDownloads[query.ih] {
+				node.activeDownloads[query.ih] = true
+			}
+			// If a node replies to get_peer requests for more than 
+			// MaxNodeDownloads different InfoHashes it's spammy 
+			// and we ignore it
+			if d.config.MaxNodeDownloads > 0 && len(node.activeDownloads) > d.config.MaxNodeDownloads {
+				log.Warningf("killing spammy node %s with activeDownloads: %d\n", nettools.BinaryToDottedPort(node.addressBinaryFormat), len(node.activeDownloads))
+				d.routingTable.addBadNode(node.address.String())
+				d.routingTable.kill(node, d.peerStore)
+				return
+			}
 			// Finally, new peers.
 			result := map[InfoHash][]string{query.ih: peers}
 			totalPeers.Add(int64(len(peers)))
-			log.V(2).Infof("DHT: processGetPeerResults, totalPeers: %v", totalPeers.String())
+			log.V(2).Infof("DHT: processGetPeerResults, %s peers: %d, totalPeers: %v from %s", query.ih, len(peers), totalPeers.String(),nettools.BinaryToDottedPort(node.addressBinaryFormat))
 			select {
 			case d.PeersRequestResults <- result:
 			case <-d.stop:

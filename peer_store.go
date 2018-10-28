@@ -5,6 +5,9 @@ import (
 
 	log "github.com/golang/glog"
 	"github.com/golang/groupcache/lru"
+
+	"github.com/patrickmn/go-cache"
+	"time"
 )
 
 // For the inner map, the key address in binary form. value=ignored.
@@ -124,12 +127,14 @@ func (p *peerContactsSet) Alive() int {
 	return ret
 }
 
-func newPeerStore(maxInfoHashes, maxInfoHashPeers int) *peerStore {
+func newPeerStore(maxInfoHashes, maxInfoHashPeers, maxNodes int, SearchCntExpire time.Duration) *peerStore {
 	return &peerStore{
 		infoHashPeers:        lru.New(maxInfoHashes),
 		localActiveDownloads: make(map[InfoHash]bool),
+		searchCount:          cache.New(SearchCntExpire, time.Duration(SearchCntExpire/2)),
 		maxInfoHashes:        maxInfoHashes,
 		maxInfoHashPeers:     maxInfoHashPeers,
+		maxNodes:             maxNodes,
 	}
 }
 
@@ -139,8 +144,10 @@ type peerStore struct {
 	infoHashPeers *lru.Cache
 	// infoHashes for which we are peers.
 	localActiveDownloads map[InfoHash]bool
+	searchCount          *cache.Cache
 	maxInfoHashes        int
 	maxInfoHashPeers     int
+	maxNodes             int
 }
 
 func (h *peerStore) get(ih InfoHash) *peerContactsSet {
@@ -224,4 +231,21 @@ func (h *peerStore) hasLocalDownload(ih InfoHash) bool {
 	_, ok := h.localActiveDownloads[ih]
 	log.V(3).Infof("hasLocalDownload for %x: %v", ih, ok)
 	return ok
+}
+
+// count the number of get_peer requests per hash
+func (h *peerStore) addSearchCount(ih InfoHash) int {
+	cnt, err := h.searchCount.IncrementInt(string(ih),1)
+	count := 1
+	if err == nil {
+		count = cnt
+	} else {
+		h.searchCount.Set(string(ih),int(1),cache.DefaultExpiration)
+	}
+	log.V(3).Infof("searchCount %x: %d", ih, count)
+	return count
+}
+
+func (h *peerStore) resetSearchCount(ih InfoHash) {
+	h.searchCount.Delete(string(ih))
 }

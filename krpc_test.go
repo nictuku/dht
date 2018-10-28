@@ -5,7 +5,7 @@ import (
 )
 
 func TestDecodeInfoHash(t *testing.T) {
-	infoHash, err := DecodeInfoHash("d1c5676ae7ac98e8b19f63565905105e3c4c37a2")
+	infoHash, err := DecodeInfoHash("c3c5fe05c329ae51c6eca464f6b30ba0a457b2ca")
 	if err != nil {
 		t.Fatalf("DecodeInfoHash faiure: %v", err)
 	}
