@@ -39,22 +39,8 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/golang/glog"
 	"github.com/nictuku/nettools"
 )
-
-// ===== Logging behavior =====
-// By default nothing will be output on the screen, unless the program is
-// called with special flags like -logtostderr. To show really important
-// messages, use fmt.Print functions. The general rules for log verbosity are:
-// - Major errors are logged with V(0) (or just ommit the V).
-// - Rare events of major importance like the startup message should be logged
-// with V(1).
-// - Events related to user input (e.g: more peers requested, or peers found)
-// should be logged with V(2).
-// - Protocol errors should be logged with V(3). They are often noisy.
-// - New incoming and outgoing KRPCs should also be logged with V(3).
-// - Debugging and tracing should be logged with V(4) or higher.
 
 // Config for the DHT Node. Use NewConfig to create a configuration with default values.
 type Config struct {
@@ -151,6 +137,7 @@ type DHT struct {
 	peerStore              *peerStore
 	conn                   *net.UDPConn
 	Logger                 Logger
+	Logger2                Logger2
 	exploredNeighborhood   bool
 	remoteNodeAcquaintance chan string
 	peersRequest           chan ihReq
@@ -183,6 +170,7 @@ func New(config *Config) (node *DHT, err error) {
 		peerStore:            newPeerStore(cfg.MaxInfoHashes, cfg.MaxInfoHashPeers),
 		PeersRequestResults:  make(chan map[InfoHash][]string, 1),
 		stop:                 make(chan bool),
+		Logger2:              &nullLogger{},
 		exploredNeighborhood: false,
 		// Buffer to avoid blocking on sends.
 		remoteNodeAcquaintance: make(chan string, 100),
@@ -192,13 +180,17 @@ func New(config *Config) (node *DHT, err error) {
 		pingRequest:    make(chan *remoteNode),
 		portRequest:    make(chan int),
 		clientThrottle: nettools.NewThrottler(cfg.ClientPerMinuteLimit, cfg.ThrottlerTrackedClients),
-		tokenSecrets:   []string{newTokenSecret(), newTokenSecret()},
 	}
+	node.tokenSecrets = []string{node.newTokenSecret(), node.newTokenSecret()}
 	c := openStore(cfg.Port, cfg.SaveRoutingTable)
 	node.store = c
 	if len(c.Id) != 20 {
-		c.Id = randNodeId()
-		log.V(4).Infof("Using a new random node ID: %x %d", c.Id, len(c.Id))
+		var err error
+		c.Id, err = randNodeId()
+		if err != nil {
+			return nil, err
+		}
+		node.Logger2.Debugf("Using a new random node ID: %x %d", c.Id, len(c.Id))
 		saveStore(*c)
 	}
 	// The types don't match because JSON marshalling needs []byte.
@@ -212,18 +204,18 @@ func New(config *Config) (node *DHT, err error) {
 	node.wg.Add(1)
 	go func() {
 		defer node.wg.Done()
-		for addr, _ := range c.Remotes {
+		for addr := range c.Remotes {
 			node.AddNode(addr)
 		}
 	}()
 	return
 }
 
-func newTokenSecret() string {
+func (d *DHT) newTokenSecret() string {
 	b := make([]byte, 5)
 	if _, err := rand.Read(b); err != nil {
 		// This would return a string with up to 5 null chars.
-		log.Warningf("DHT: failed to generate random newTokenSecret: %v", err)
+		d.Logger2.Errorf("DHT: failed to generate random newTokenSecret: %v", err)
 	}
 	return string(b)
 }
@@ -245,7 +237,7 @@ type ihReq struct {
 // is just a router that doesn't downloads torrents.
 func (d *DHT) PeersRequest(ih string, announce bool) {
 	d.peersRequest <- ihReq{InfoHash(ih), announce}
-	log.V(2).Infof("DHT: torrent client asking more peers for %x.", ih)
+	d.Logger2.Infof("DHT: torrent client asking more peers for %x.", ih)
 }
 
 // Stop the DHT node.
@@ -328,7 +320,7 @@ func (d *DHT) Start() (err error) {
 // If initSocket succeeds, Run blocks until d.Stop() is called.
 // DEPRECATED - Start should be used instead of Run
 func (d *DHT) Run() error {
-	log.Warning("dht.Run() is deprecated, use dht.Start() instead")
+	d.Logger2.Infof("dht.Run() is deprecated, use dht.Start() instead")
 	if err := d.initSocket(); err != nil {
 		return err
 	}
@@ -400,7 +392,7 @@ func (d *DHT) loop() {
 	tokenBucket := d.config.RateLimit
 
 	if d.config.RateLimit < 0 {
-		log.Warning("rate limiting disabled")
+		d.Logger2.Infof("rate limiting disabled")
 	} else {
 		// Token bucket for limiting the number of packets per second.
 		fillTokenBucket = time.Tick(time.Second / 10)
@@ -409,14 +401,13 @@ func (d *DHT) loop() {
 			d.config.RateLimit = 10
 		}
 	}
-	log.V(1).Infof("DHT: Starting DHT node %x on port %d.", d.nodeId, d.config.Port)
+	d.Logger2.Infof("DHT: Starting DHT node %x on port %d.", d.nodeId, d.config.Port)
 
 	for {
 		select {
 		case <-d.stop:
-			log.V(1).Infof("DHT exiting.")
+			d.Logger2.Infof("DHT exiting.")
 			d.clientThrottle.Stop()
-			log.Flush()
 			return
 		case addr := <-d.remoteNodeAcquaintance:
 			d.helloFromPeer(addr)
@@ -458,7 +449,7 @@ func (d *DHT) loop() {
 					break L
 				}
 			}
-			for ih, _ := range m {
+			for ih := range m {
 				d.findNode(string(ih))
 			}
 
@@ -494,7 +485,7 @@ func (d *DHT) loop() {
 		case node := <-d.pingRequest:
 			d.pingNode(node)
 		case <-secretRotateTicker:
-			d.tokenSecrets = []string{newTokenSecret(), d.tokenSecrets[0]}
+			d.tokenSecrets = []string{d.newTokenSecret(), d.tokenSecrets[0]}
 		case d.portRequest <- d.config.Port:
 			continue
 		case <-saveTicker:
@@ -535,7 +526,7 @@ func (d *DHT) helloFromPeer(addr string) {
 	// - if it responds, save it in the routing table.
 	_, addrResolved, existed, err := d.routingTable.hostPortToNode(addr, d.config.UDPProto)
 	if err != nil {
-		log.Warningf("helloFromPeer error: %v", err)
+		d.Logger2.Debugf("helloFromPeer error: %v", err)
 		return
 	}
 	if existed {
@@ -549,42 +540,42 @@ func (d *DHT) helloFromPeer(addr string) {
 }
 
 func (d *DHT) processPacket(p packetType) {
-	log.V(5).Infof("DHT processing packet from %v", p.raddr.String())
+	d.Logger2.Debugf("DHT processing packet from %v", p.raddr.String())
 	if !d.clientThrottle.CheckBlock(p.raddr.IP.String()) {
 		totalPacketsFromBlockedHosts.Add(1)
-		log.V(5).Infof("Node exceeded rate limiter. Dropping packet.")
+		d.Logger2.Debugf("Node exceeded rate limiter. Dropping packet.")
 		return
 	}
 	if p.b[0] != 'd' {
 		// Malformed DHT packet. There are protocol extensions out
 		// there that we don't support or understand.
-		log.V(5).Infof("Malformed DHT packet.")
+		d.Logger2.Debugf("Malformed DHT packet.")
 		return
 	}
 	r, err := readResponse(p)
 	if err != nil {
-		log.Warningf("DHT: readResponse Error: %v, %q", err, string(p.b))
+		d.Logger2.Debugf("DHT: readResponse Error: %v, %q", err, string(p.b))
 		return
 	}
 	switch {
 	// Response.
 	case r.Y == "r":
-		log.V(5).Infof("DHT processing response from %x", r.R.Id)
+		d.Logger2.Debugf("DHT processing response from %x", r.R.Id)
 		if bogusId(r.R.Id) {
-			log.V(3).Infof("DHT received packet with bogus node id %x", r.R.Id)
+			d.Logger2.Debugf("DHT received packet with bogus node id %x", r.R.Id)
 			return
 		}
 		if r.R.Id == d.nodeId {
-			log.V(3).Infof("DHT received reply from self, id %x", r.A.Id)
+			d.Logger2.Debugf("DHT received reply from self, id %x", r.A.Id)
 			return
 		}
 		node, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String(), d.config.UDPProto)
 		if err != nil {
-			log.V(3).Infof("DHT readResponse error processing response: %v", err)
+			d.Logger2.Debugf("DHT readResponse error processing response: %v", err)
 			return
 		}
 		if !existed {
-			log.V(3).Infof("DHT: Received reply from a host we don't know: %v", p.raddr)
+			d.Logger2.Debugf("DHT: Received reply from a host we don't know: %v", p.raddr)
 			if d.routingTable.length() < d.config.MaxNodes {
 				d.ping(addr)
 			}
@@ -596,10 +587,10 @@ func (d *DHT) processPacket(p packetType) {
 			d.routingTable.update(node, d.config.UDPProto)
 		}
 		if node.id != r.R.Id {
-			log.V(3).Infof("DHT: Node changed IDs %x => %x", node.id, r.R.Id)
+			d.Logger2.Debugf("DHT: Node changed IDs %x => %x", node.id, r.R.Id)
 		}
 		if query, ok := node.pendingQueries[r.T]; ok {
-			log.V(4).Infof("DHT: Received reply to %v", query.Type)
+			d.Logger2.Debugf("DHT: Received reply to %v", query.Type)
 			if !node.reachable {
 				node.reachable = true
 				totalNodesReached.Add(1)
@@ -611,7 +602,7 @@ func (d *DHT) processPacket(p packetType) {
 			// If this is the first host added to the routing table, attempt a
 			// recursive lookup of our own address, to build our neighborhood ASAP.
 			if d.needMoreNodes() {
-				log.V(5).Infof("DHT: need more nodes")
+				d.Logger2.Debugf("DHT: need more nodes")
 				d.findNode(d.nodeId)
 			}
 			d.exploredNeighborhood = true
@@ -621,28 +612,28 @@ func (d *DHT) processPacket(p packetType) {
 				// Served its purpose, nothing else to be done.
 				totalRecvPingReply.Add(1)
 			case "get_peers":
-				log.V(5).Infof("DHT: got get_peers response")
+				d.Logger2.Debugf("DHT: got get_peers response")
 				d.processGetPeerResults(node, r)
 			case "find_node":
-				log.V(5).Infof("DHT: got find_node response")
+				d.Logger2.Debugf("DHT: got find_node response")
 				d.processFindNodeResults(node, r)
 			case "announce_peer":
 				// Nothing to do. In the future, update counters.
 			default:
-				log.V(3).Infof("DHT: Unknown query type: %v from %v", query.Type, addr)
+				d.Logger2.Debugf("DHT: Unknown query type: %v from %v", query.Type, addr)
 			}
 			delete(node.pendingQueries, r.T)
 		} else {
-			log.V(3).Infof("DHT: Unknown query id: %v", r.T)
+			d.Logger2.Debugf("DHT: Unknown query id: %v", r.T)
 		}
 	case r.Y == "q":
 		if r.A.Id == d.nodeId {
-			log.V(3).Infof("DHT received packet from self, id %x", r.A.Id)
+			d.Logger2.Debugf("DHT received packet from self, id %x", r.A.Id)
 			return
 		}
 		node, addr, existed, err := d.routingTable.hostPortToNode(p.raddr.String(), d.config.UDPProto)
 		if err != nil {
-			log.Warningf("Error readResponse error processing query: %v", err)
+			d.Logger2.Debugf("Error readResponse error processing query: %v", err)
 			return
 		}
 		if !existed {
@@ -651,7 +642,7 @@ func (d *DHT) processPacket(p packetType) {
 				d.ping(addr)
 			}
 		}
-		log.V(5).Infof("DHT processing %v request", r.Q)
+		d.Logger2.Debugf("DHT processing %v request", r.Q)
 		switch r.Q {
 		case "ping":
 			d.replyPing(p.raddr, r)
@@ -662,24 +653,24 @@ func (d *DHT) processPacket(p packetType) {
 		case "announce_peer":
 			d.replyAnnouncePeer(p.raddr, node, r)
 		default:
-			log.V(3).Infof("DHT: non-implemented handler for type %v", r.Q)
+			d.Logger2.Debugf("DHT: non-implemented handler for type %v", r.Q)
 		}
 	default:
-		log.V(3).Infof("DHT: Bogus DHT query from %v.", p.raddr)
+		d.Logger2.Debugf("DHT: Bogus DHT query from %v.", p.raddr)
 	}
 }
 
 func (d *DHT) ping(address string) {
 	r, err := d.routingTable.getOrCreateNode("", address, d.config.UDPProto)
 	if err != nil {
-		log.V(3).Infof("ping error for address %v: %v", address, err)
+		d.Logger2.Debugf("ping error for address %v: %v", address, err)
 		return
 	}
 	d.pingNode(r)
 }
 
 func (d *DHT) pingNode(r *remoteNode) {
-	log.V(3).Infof("DHT: ping => %+v", r.address)
+	d.Logger2.Debugf("DHT: ping => %+v", r.address)
 	t := r.newQuery("ping")
 
 	queryArguments := map[string]interface{}{"id": d.nodeId}
@@ -705,10 +696,7 @@ func (d *DHT) getPeersFrom(r *remoteNode, ih InfoHash) {
 		"info_hash": ih,
 	}
 	query := queryMessage{transId, "q", ty, queryArguments}
-	if log.V(3) {
-		x := hashDistance(InfoHash(r.id), ih)
-		log.V(3).Infof("DHT sending get_peers. nodeID: %x@%v, InfoHash: %x , distance: %x", r.id, r.address, ih, x)
-	}
+	d.Logger2.Debugf("DHT sending get_peers. nodeID: %x@%v, InfoHash: %x , distance: %x", r.id, r.address, ih, hashDistance(InfoHash(r.id), ih))
 	r.lastSearchTime = time.Now()
 	sendMsg(d.conn, r.address, query)
 }
@@ -721,7 +709,7 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 	ty := "find_node"
 	transId := r.newQuery(ty)
 	ih := InfoHash(id)
-	log.V(3).Infof("findNodeFrom adding pendingQueries transId=%v ih=%x", transId, ih)
+	d.Logger2.Debugf("findNodeFrom adding pendingQueries transId=%v ih=%x", transId, ih)
 	if _, ok := r.pendingQueries[transId]; ok {
 		r.pendingQueries[transId].ih = ih
 	} else {
@@ -732,10 +720,7 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 		"target": id,
 	}
 	query := queryMessage{transId, "q", ty, queryArguments}
-	if log.V(3) {
-		x := hashDistance(InfoHash(r.id), ih)
-		log.V(3).Infof("DHT sending find_node. nodeID: %x@%v, target ID: %x , distance: %x", r.id, r.address, id, x)
-	}
+	d.Logger2.Debugf("DHT sending find_node. nodeID: %x@%v, target ID: %x , distance: %x", r.id, r.address, id, hashDistance(InfoHash(r.id), ih))
 	r.lastSearchTime = time.Now()
 	sendMsg(d.conn, r.address, query)
 }
@@ -746,11 +731,11 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 func (d *DHT) announcePeer(address net.UDPAddr, ih InfoHash, token string) {
 	r, err := d.routingTable.getOrCreateNode("", address.String(), d.config.UDPProto)
 	if err != nil {
-		log.V(3).Infof("announcePeer error: %v", err)
+		d.Logger2.Debugf("announcePeer error: %v", err)
 		return
 	}
 	ty := "announce_peer"
-	log.V(3).Infof("DHT: announce_peer => address: %v, ih: %x, token: %x", address, ih, token)
+	d.Logger2.Debugf("DHT: announce_peer => address: %v, ih: %x, token: %x", address, ih, token)
 	transId := r.newQuery(ty)
 	queryArguments := map[string]interface{}{
 		"id":        d.nodeId,
@@ -777,17 +762,15 @@ func (d *DHT) checkToken(addr net.UDPAddr, token string) bool {
 			break
 		}
 	}
-	log.V(4).Infof("checkToken for %v, %q matches? %v", addr, token, match)
+	d.Logger2.Debugf("checkToken for %v, %q matches? %v", addr, token, match)
 	return match
 }
 
 func (d *DHT) replyAnnouncePeer(addr net.UDPAddr, node *remoteNode, r responseType) {
 	ih := InfoHash(r.A.InfoHash)
-	if log.V(3) {
-		log.Infof("DHT: announce_peer. Host %v, nodeID: %x, infoHash: %x, peerPort %d, distance to me %x",
-			addr, r.A.Id, ih, r.A.Port, hashDistance(ih, InfoHash(d.nodeId)),
-		)
-	}
+	d.Logger2.Debugf("DHT: announce_peer. Host %v, nodeID: %x, infoHash: %x, peerPort %d, distance to me %x",
+		addr, r.A.Id, ih, r.A.Port, hashDistance(ih, InfoHash(d.nodeId)),
+	)
 	// node can be nil if, for example, the server just restarted and received an announce_peer
 	// from a node it doesn't yet know about.
 	if node != nil && d.checkToken(addr, r.A.Token) {
@@ -798,7 +781,7 @@ func (d *DHT) replyAnnouncePeer(addr net.UDPAddr, node *remoteNode, r responseTy
 		// "peer" of an infohash, if the announcement is valid.
 		node.lastResponseTime = time.Now().Add(-searchRetryPeriod)
 		if d.peerStore.hasLocalDownload(ih) {
-			d.PeersRequestResults <- map[InfoHash][]string{ih: []string{nettools.DottedPortToBinary(peerAddr.String())}}
+			d.PeersRequestResults <- map[InfoHash][]string{ih: {nettools.DottedPortToBinary(peerAddr.String())}}
 		}
 	}
 	// Always reply positively. jech says this is to avoid "back-tracking", not sure what that means.
@@ -812,10 +795,8 @@ func (d *DHT) replyAnnouncePeer(addr net.UDPAddr, node *remoteNode, r responseTy
 
 func (d *DHT) replyGetPeers(addr net.UDPAddr, r responseType) {
 	totalRecvGetPeers.Add(1)
-	if log.V(3) {
-		log.Infof("DHT get_peers. Host: %v , nodeID: %x , InfoHash: %x , distance to me: %x",
-			addr, r.A.Id, InfoHash(r.A.InfoHash), hashDistance(r.A.InfoHash, InfoHash(d.nodeId)))
-	}
+	d.Logger2.Debugf("DHT get_peers. Host: %v , nodeID: %x , InfoHash: %x , distance to me: %x",
+		addr, r.A.Id, InfoHash(r.A.InfoHash), hashDistance(r.A.InfoHash, InfoHash(d.nodeId)))
 
 	if d.Logger != nil {
 		d.Logger.GetPeers(addr, r.A.Id, r.A.InfoHash)
@@ -844,32 +825,29 @@ func (d *DHT) nodesForInfoHash(ih InfoHash) string {
 		if r != nil {
 			binaryHost := r.id + nettools.DottedPortToBinary(r.address.String())
 			if binaryHost == "" {
-				log.V(3).Infof("killing node with bogus address %v", r.address.String())
+				d.Logger2.Debugf("killing node with bogus address %v", r.address.String())
 				d.routingTable.kill(r, d.peerStore)
 			} else {
 				n = append(n, binaryHost)
 			}
 		}
 	}
-	log.V(3).Infof("replyGetPeers: Nodes only. Giving %d", len(n))
+	d.Logger2.Debugf("replyGetPeers: Nodes only. Giving %d", len(n))
 	return strings.Join(n, "")
 }
 
 func (d *DHT) peersForInfoHash(ih InfoHash) []string {
 	peerContacts := d.peerStore.peerContacts(ih)
 	if len(peerContacts) > 0 {
-		log.V(3).Infof("replyGetPeers: Giving peers! %x was requested, and we knew %d peers!", ih, len(peerContacts))
+		d.Logger2.Debugf("replyGetPeers: Giving peers! %x was requested, and we knew %d peers!", ih, len(peerContacts))
 	}
 	return peerContacts
 }
 
 func (d *DHT) replyFindNode(addr net.UDPAddr, r responseType) {
 	totalRecvFindNode.Add(1)
-	if log.V(3) {
-		x := hashDistance(InfoHash(r.A.Target), InfoHash(d.nodeId))
-		log.Infof("DHT find_node. Host: %v , nodeId: %x , target ID: %x , distance to me: %x",
-			addr, r.A.Id, r.A.Target, x)
-	}
+	d.Logger2.Debugf("DHT find_node. Host: %v , nodeId: %x , target ID: %x , distance to me: %x",
+		addr, r.A.Id, r.A.Target, hashDistance(InfoHash(r.A.Target), InfoHash(d.nodeId)))
 
 	node := InfoHash(r.A.Target)
 	r0 := map[string]interface{}{"id": d.nodeId}
@@ -890,13 +868,13 @@ func (d *DHT) replyFindNode(addr net.UDPAddr, r responseType) {
 			break
 		}
 	}
-	log.V(3).Infof("replyFindNode: Nodes only. Giving %d", len(n))
+	d.Logger2.Debugf("replyFindNode: Nodes only. Giving %d", len(n))
 	reply.R["nodes"] = strings.Join(n, "")
 	sendMsg(d.conn, addr, reply)
 }
 
 func (d *DHT) replyPing(addr net.UDPAddr, response responseType) {
-	log.V(3).Infof("DHT: reply ping => %v", addr)
+	d.Logger2.Debugf("DHT: reply ping => %v", addr)
 	reply := replyMessage{
 		T: response.T,
 		Y: "r",
@@ -929,7 +907,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 			// Finally, new peers.
 			result := map[InfoHash][]string{query.ih: peers}
 			totalPeers.Add(int64(len(peers)))
-			log.V(2).Infof("DHT: processGetPeerResults, totalPeers: %v", totalPeers.String())
+			d.Logger2.Debugf("DHT: processGetPeerResults, totalPeers: %v", totalPeers.String())
 			select {
 			case d.PeersRequestResults <- result:
 			case <-d.stop:
@@ -945,18 +923,18 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 	} else if d.config.UDPProto == "udp6" {
 		nodelist = resp.R.Nodes6
 	}
-	log.V(5).Infof("DHT: handling get_peers results len(nodelist)=%d", len(nodelist))
+	d.Logger2.Debugf("DHT: handling get_peers results len(nodelist)=%d", len(nodelist))
 	if nodelist != "" {
 		for id, address := range parseNodesString(nodelist, d.config.UDPProto) {
 			if id == d.nodeId {
-				log.V(5).Infof("DHT got reference of self for get_peers, id %x", id)
+				d.Logger2.Debugf("DHT got reference of self for get_peers, id %x", id)
 				continue
 			}
 
 			// If it's in our routing table already, ignore it.
 			_, addr, existed, err := d.routingTable.hostPortToNode(address, d.config.UDPProto)
 			if err != nil {
-				log.V(3).Infof("DHT error parsing get peers node: %v", err)
+				d.Logger2.Debugf("DHT error parsing get peers node: %v", err)
 				continue
 			}
 			if addr == node.address.String() {
@@ -968,19 +946,13 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 				continue
 			}
 			if existed {
-				if log.V(4) {
-					x := hashDistance(query.ih, InfoHash(node.id))
-					log.Infof("DHT: processGetPeerResults DUPE node reference: %x@%v from %x@%v. Distance: %x.",
-						id, address, node.id, node.address, x)
-				}
+				d.Logger2.Debugf("DHT: processGetPeerResults DUPE node reference: %x@%v from %x@%v. Distance: %x.",
+					id, address, node.id, node.address, hashDistance(query.ih, InfoHash(node.id)))
 				totalGetPeersDupes.Add(1)
 			} else {
 				// And it is actually new. Interesting.
-				if log.V(4) {
-					x := hashDistance(query.ih, InfoHash(node.id))
-					log.Infof("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.",
-						id, address, node.id, node.address, x)
-				}
+				d.Logger2.Debugf("DHT: Got new node reference: %x@%v from %x@%v. Distance: %x.",
+					id, address, node.id, node.address, hashDistance(query.ih, InfoHash(node.id)))
 				if _, err := d.routingTable.getOrCreateNode(id, addr, d.config.UDPProto); err == nil && d.needMorePeers(query.ih) {
 					// Re-add this request to the queue. This would in theory
 					// batch similar requests, because new nodes are already
@@ -1021,17 +993,17 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 	} else if d.config.UDPProto == "udp6" {
 		nodelist = resp.R.Nodes6
 	}
-	log.V(5).Infof("processFindNodeResults find_node = %s len(nodelist)=%d", nettools.BinaryToDottedPort(node.addressBinaryFormat), len(nodelist))
+	d.Logger2.Debugf("processFindNodeResults find_node = %s len(nodelist)=%d", nettools.BinaryToDottedPort(node.addressBinaryFormat), len(nodelist))
 
 	if nodelist != "" {
 		for id, address := range parseNodesString(nodelist, d.config.UDPProto) {
 			_, addr, existed, err := d.routingTable.hostPortToNode(address, d.config.UDPProto)
 			if err != nil {
-				log.V(3).Infof("DHT error parsing node from find_find response: %v", err)
+				d.Logger2.Debugf("DHT error parsing node from find_find response: %v", err)
 				continue
 			}
 			if id == d.nodeId {
-				log.V(5).Infof("DHT got reference of self for find_node, id %x", id)
+				d.Logger2.Debugf("DHT got reference of self for find_node, id %x", id)
 				continue
 			}
 			if addr == node.address.String() {
@@ -1041,24 +1013,18 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 				continue
 			}
 			if existed {
-				if log.V(4) {
-					x := hashDistance(query.ih, InfoHash(node.id))
-					log.Infof("DHT: processFindNodeResults DUPE node reference, query %x: %x@%v from %x@%v. Distance: %x.",
-						query.ih, id, address, node.id, node.address, x)
-				}
+				d.Logger2.Debugf("DHT: processFindNodeResults DUPE node reference, query %x: %x@%v from %x@%v. Distance: %x.",
+					query.ih, id, address, node.id, node.address, hashDistance(query.ih, InfoHash(node.id)))
 				totalFindNodeDupes.Add(1)
 			} else {
-				if log.V(4) {
-					x := hashDistance(query.ih, InfoHash(node.id))
-					log.Infof("DHT: Got new node reference, query %x: %x@%v from %x@%v. Distance: %x.",
-						query.ih, id, address, node.id, node.address, x)
-				}
+				d.Logger2.Debugf("DHT: Got new node reference, query %x: %x@%v from %x@%v. Distance: %x.",
+					query.ih, id, address, node.id, node.address, hashDistance(query.ih, InfoHash(node.id)))
 				// Includes the node in the routing table and ignores errors.
 				//
 				// Only continue the search if we really have to.
 				r, err := d.routingTable.getOrCreateNode(id, addr, d.config.UDPProto)
 				if err != nil {
-					log.Warningf("processFindNodeResults calling getOrCreateNode: %v. Id=%x, Address=%q", err, id, addr)
+					d.Logger2.Debugf("processFindNodeResults calling getOrCreateNode: %v. Id=%x, Address=%q", err, id, addr)
 					continue
 				}
 				if d.needMoreNodes() {
@@ -1077,12 +1043,10 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 	}
 }
 
-func randNodeId() []byte {
+func randNodeId() ([]byte, error) {
 	b := make([]byte, 20)
-	if _, err := rand.Read(b); err != nil {
-		log.Fatalln("nodeId rand:", err)
-	}
-	return b
+	_, err := io.ReadFull(rand.Reader, b)
+	return b, err
 }
 
 var (
