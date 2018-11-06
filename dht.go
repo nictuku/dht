@@ -131,13 +131,23 @@ const (
 // client, such as finding new peers for torrent downloads without requiring a
 // tracker.
 type DHT struct {
+	// PeersRequestResults receives results after user calls PeersRequest method.
+	// Map key contains the 20 bytes infohash string, value contains the list of peer addresses.
+	// Peer addresses are in binary format. You can use DecodePeerAddress function to decode peer addresses.
+	PeersRequestResults chan map[InfoHash][]string
+	// Logger contains hooks for a client to attach for certain RPCs.
+	// Hooks is a better name for the job but we don't want to change it and break existing users.
+	Logger Logger
+	// DebugLogger is called with log messages.
+	// By default, nothing is printed to the output from the library.
+	// If you want to see log messages, you have to provide a DebugLogger implementation.
+	DebugLogger DebugLogger
+
 	nodeId                 string
 	config                 Config
 	routingTable           *routingTable
 	peerStore              *peerStore
 	conn                   *net.UDPConn
-	Logger                 Logger
-	DebugLogger            DebugLogger
 	exploredNeighborhood   bool
 	remoteNodeAcquaintance chan string
 	peersRequest           chan ihReq
@@ -149,9 +159,6 @@ type DHT struct {
 	clientThrottle         *nettools.ClientThrottle
 	store                  *dhtStore
 	tokenSecrets           []string
-
-	// Public channels:
-	PeersRequestResults chan map[InfoHash][]string // key = infohash, v = slice of peers.
 }
 
 // New creates a DHT node. If config is nil, DefaultConfig will be used.
