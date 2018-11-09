@@ -49,7 +49,10 @@ func TestUpkeep(t *testing.T) {
 		// routing table, but when they are displaced by closer nodes, they
 		// are killed from the neighbors list and from the routing table, so
 		// there should be no sign of them later on.
-		n := randNodeId()
+		n, err := randNodeId()
+		if err != nil {
+			t.Fatal(err)
+		}
 		n[0] = byte(0x3d) // Ensure long distance.
 		r.neighborhoodUpkeep(genremoteNode(string(n)), "udp", newPeerStore(0, 0))
 	}
