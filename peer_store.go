@@ -97,7 +97,7 @@ func (p *peerContactsSet) dropDead() string {
 		if !p.set[p.ring.Move(1).Value.(string)] {
 			dn := p.ring.Unlink(1).Value.(string)
 			delete(p.set, dn)
-			return  dn
+			return dn
 		}
 	}
 	return ""
@@ -127,7 +127,7 @@ func (p *peerContactsSet) Alive() int {
 func newPeerStore(maxInfoHashes, maxInfoHashPeers int) *peerStore {
 	return &peerStore{
 		infoHashPeers:        lru.New(maxInfoHashes),
-		localActiveDownloads: make(map[InfoHash]bool),
+		localActiveDownloads: make(map[InfoHash]int),
 		maxInfoHashes:        maxInfoHashes,
 		maxInfoHashPeers:     maxInfoHashPeers,
 	}
@@ -138,7 +138,7 @@ type peerStore struct {
 	// values are peerContactsSet.
 	infoHashPeers *lru.Cache
 	// infoHashes for which we are peers.
-	localActiveDownloads map[InfoHash]bool
+	localActiveDownloads map[InfoHash]int // value is port number
 	maxInfoHashes        int
 	maxInfoHashPeers     int
 }
@@ -216,12 +216,12 @@ func (h *peerStore) killContact(peerContact string) {
 	}
 }
 
-func (h *peerStore) addLocalDownload(ih InfoHash) {
-	h.localActiveDownloads[ih] = true
+func (h *peerStore) addLocalDownload(ih InfoHash, port int) {
+	h.localActiveDownloads[ih] = port
 }
 
-func (h *peerStore) hasLocalDownload(ih InfoHash) bool {
-	_, ok := h.localActiveDownloads[ih]
+func (h *peerStore) hasLocalDownload(ih InfoHash) (port int) {
+	port, ok := h.localActiveDownloads[ih]
 	log.V(3).Infof("hasLocalDownload for %x: %v", ih, ok)
-	return ok
+	return port
 }

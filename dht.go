@@ -234,8 +234,13 @@ type Logger interface {
 }
 
 type ihReq struct {
-	ih       InfoHash
+	ih      InfoHash
+	options announceOptions
+}
+
+type announceOptions struct {
 	announce bool
+	port     int
 }
 
 // PeersRequest asks the DHT to search for more peers for the infoHash
@@ -243,7 +248,12 @@ type ihReq struct {
 // downloading this infohash, which is normally the case - unless this DHT node
 // is just a router that doesn't downloads torrents.
 func (d *DHT) PeersRequest(ih string, announce bool) {
-	d.peersRequest <- ihReq{InfoHash(ih), announce}
+	d.PeersRequestPort(ih, announce, d.config.Port)
+}
+
+// PeersRequestPort is same as PeersRequest but it takes additional port argument to use in "announce_peer" request.
+func (d *DHT) PeersRequestPort(ih string, announce bool, port int) {
+	d.peersRequest <- ihReq{InfoHash(ih), announceOptions{announce, port}}
 	d.DebugLogger.Infof("DHT: torrent client asking more peers for %x.", ih)
 }
 
@@ -424,21 +434,21 @@ func (d *DHT) loop() {
 			// PeersNeededResults channel.
 
 			// Drain all requests sitting in the channel and de-dupe them.
-			m := map[InfoHash]bool{req.ih: req.announce}
+			m := map[InfoHash]announceOptions{req.ih: req.options}
 		P:
 			for {
 				select {
 				case req = <-d.peersRequest:
-					m[req.ih] = req.announce
+					m[req.ih] = req.options
 				default:
 					// Channel drained.
 					break P
 				}
 			}
 			// Process each unique infohash for which there were requests.
-			for ih, announce := range m {
-				if announce {
-					d.peerStore.addLocalDownload(ih)
+			for ih, options := range m {
+				if options.announce {
+					d.peerStore.addLocalDownload(ih, options.port)
 				}
 
 				d.getPeers(ih) // I might have enough peers in the peerstore, but no seeds
@@ -735,7 +745,7 @@ func (d *DHT) findNodeFrom(r *remoteNode, id string) {
 // announcePeer sends a message to the destination address to advertise that
 // our node is a peer for this infohash, using the provided token to
 // 'authenticate'.
-func (d *DHT) announcePeer(address net.UDPAddr, ih InfoHash, token string) {
+func (d *DHT) announcePeer(address net.UDPAddr, ih InfoHash, port int, token string) {
 	r, err := d.routingTable.getOrCreateNode("", address.String(), d.config.UDPProto)
 	if err != nil {
 		d.DebugLogger.Debugf("announcePeer error: %v", err)
@@ -747,7 +757,7 @@ func (d *DHT) announcePeer(address net.UDPAddr, ih InfoHash, token string) {
 	queryArguments := map[string]interface{}{
 		"id":        d.nodeId,
 		"info_hash": ih,
-		"port":      d.config.Port,
+		"port":      port,
 		"token":     token,
 	}
 	query := queryMessage{transId, "q", ty, queryArguments}
@@ -787,7 +797,8 @@ func (d *DHT) replyAnnouncePeer(addr net.UDPAddr, node *remoteNode, r responseTy
 		// it has an infohash. Enables faster upgrade of other nodes to
 		// "peer" of an infohash, if the announcement is valid.
 		node.lastResponseTime = time.Now().Add(-searchRetryPeriod)
-		if d.peerStore.hasLocalDownload(ih) {
+		port := d.peerStore.hasLocalDownload(ih)
+		if port != 0 {
 			d.PeersRequestResults <- map[InfoHash][]string{ih: {nettools.DottedPortToBinary(peerAddr.String())}}
 		}
 	}
@@ -899,8 +910,9 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 	totalRecvGetPeersReply.Add(1)
 
 	query, _ := node.pendingQueries[resp.T]
-	if d.peerStore.hasLocalDownload(query.ih) {
-		d.announcePeer(node.address, query.ih, resp.R.Token)
+	port := d.peerStore.hasLocalDownload(query.ih)
+	if port != 0 {
+		d.announcePeer(node.address, query.ih, port, resp.R.Token)
 	}
 	if resp.R.Values != nil {
 		peers := make([]string, 0)
@@ -976,7 +988,7 @@ func (d *DHT) processGetPeerResults(node *remoteNode, resp responseType) {
 					// reply to get_peers.
 					//
 					select {
-					case d.peersRequest <- ihReq{query.ih, false}:
+					case d.peersRequest <- ihReq{ih: query.ih}:
 					default:
 						// The channel is full, so drop this item. The node
 						// was added to the routing table already, so it
@@ -1036,7 +1048,7 @@ func (d *DHT) processFindNodeResults(node *remoteNode, resp responseType) {
 				}
 				if d.needMoreNodes() {
 					select {
-					case d.nodesRequest <- ihReq{query.ih, false}:
+					case d.nodesRequest <- ihReq{ih: query.ih}:
 					default:
 						// Too many find_node commands queued up. Dropping
 						// this. The node has already been added to the
