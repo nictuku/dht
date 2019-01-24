@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	log "github.com/golang/glog"
 	bencode "github.com/jackpal/bencode-go"
 	"github.com/nictuku/nettools"
 )
@@ -35,9 +34,10 @@ type remoteNode struct {
 	lastResponseTime time.Time
 	lastSearchTime   time.Time
 	ActiveDownloads  []string // List of infohashes we know this peer is downloading.
+	log              *DebugLogger
 }
 
-func newRemoteNode(addr net.UDPAddr, id string) *remoteNode {
+func newRemoteNode(addr net.UDPAddr, id string, log *DebugLogger) *remoteNode {
 	return &remoteNode{
 		address:             addr,
 		addressBinaryFormat: nettools.DottedPortToBinary(addr.String()),
@@ -46,6 +46,7 @@ func newRemoteNode(addr net.UDPAddr, id string) *remoteNode {
 		reachable:           false,
 		pendingQueries:      map[string]*queryType{},
 		pastQueries:         map[string]*queryType{},
+		log:                 log,
 	}
 }
 
@@ -70,7 +71,7 @@ var (
 )
 
 // The 'nodes' response is a string with fixed length contacts concatenated arbitrarily.
-func parseNodesString(nodes string, proto string) (parsed map[string]string) {
+func parseNodesString(nodes string, proto string, log DebugLogger) (parsed map[string]string) {
 	var nodeContactLen int
 	if proto == "udp4" {
 		nodeContactLen = v4nodeContactLen
@@ -81,11 +82,11 @@ func parseNodesString(nodes string, proto string) (parsed map[string]string) {
 	}
 	parsed = make(map[string]string)
 	if len(nodes)%nodeContactLen > 0 {
-		log.V(3).Infof("DHT: len(NodeString) = %d, INVALID LENGTH, should be a multiple of %d", len(nodes), nodeContactLen)
-		log.V(5).Infof("%T %#v\n", nodes, nodes)
+		log.Debugf("DHT: len(NodeString) = %d, INVALID LENGTH, should be a multiple of %d", len(nodes), nodeContactLen)
+		log.Debugf("%T %#v\n", nodes, nodes)
 		return
 	} else {
-		log.V(5).Infof("DHT: len(NodeString) = %d, had %d nodes, nodeContactLen=%d\n", len(nodes), len(nodes)/nodeContactLen, nodeContactLen)
+		log.Debugf("DHT: len(NodeString) = %d, had %d nodes, nodeContactLen=%d\n", len(nodes), len(nodes)/nodeContactLen, nodeContactLen)
 	}
 	for i := 0; i < len(nodes); i += nodeContactLen {
 		id := nodes[i : i+nodeIdLen]
@@ -100,10 +101,10 @@ func parseNodesString(nodes string, proto string) (parsed map[string]string) {
 // It does not set any extra information to the transaction information, so the
 // caller must take care of that.
 func (r *remoteNode) newQuery(transType string) (transId string) {
-	log.V(4).Infof("newQuery for %x, lastID %v", r.id, r.lastQueryID)
+	(*r.log).Debugf("newQuery for %x, lastID %v", r.id, r.lastQueryID)
 	r.lastQueryID = (r.lastQueryID + 1) % 256
 	transId = strconv.Itoa(r.lastQueryID)
-	log.V(4).Infof("... new id %v", r.lastQueryID)
+	(*r.log).Debugf("... new id %v", r.lastQueryID)
 	r.pendingQueries[transId] = &queryType{Type: transType}
 	return
 }
@@ -164,14 +165,14 @@ type responseType struct {
 }
 
 // sendMsg bencodes the data in 'query' and sends it to the remote node.
-func sendMsg(conn *net.UDPConn, raddr net.UDPAddr, query interface{}) {
+func sendMsg(conn *net.UDPConn, raddr net.UDPAddr, query interface{}, log DebugLogger) {
 	totalSent.Add(1)
 	var b bytes.Buffer
 	if err := bencode.Marshal(&b, query); err != nil {
 		return
 	}
 	if n, err := conn.WriteToUDP(b.Bytes(), &raddr); err != nil {
-		log.V(3).Infof("DHT: node write failed to %+v, error=%s", raddr, err)
+		log.Debugf("DHT: node write failed to %+v, error=%s", raddr, err)
 	} else {
 		totalWrittenBytes.Add(int64(n))
 	}
@@ -179,18 +180,18 @@ func sendMsg(conn *net.UDPConn, raddr net.UDPAddr, query interface{}) {
 }
 
 // Read responses from bencode-speaking nodes. Return the appropriate data structure.
-func readResponse(p packetType) (response responseType, err error) {
+func readResponse(p packetType, log DebugLogger) (response responseType, err error) {
 	// The calls to bencode.Unmarshal() can be fragile.
 	defer func() {
 		if x := recover(); x != nil {
-			log.V(3).Infof("DHT: !!! Recovering from panic() after bencode.Unmarshal %q, %v", string(p.b), x)
+			log.Debugf("DHT: !!! Recovering from panic() after bencode.Unmarshal %q, %v", string(p.b), x)
 		}
 	}()
 	if e2 := bencode.Unmarshal(bytes.NewBuffer(p.b), &response); e2 == nil {
 		err = nil
 		return
 	} else {
-		log.V(3).Infof("DHT: unmarshal error, odd or partial data during UDP read? %v, err=%s", string(p.b), e2)
+		log.Debugf("DHT: unmarshal error, odd or partial data during UDP read? %v, err=%s", string(p.b), e2)
 		return response, e2
 	}
 	return
@@ -215,11 +216,11 @@ type packetType struct {
 	raddr net.UDPAddr
 }
 
-func listen(addr string, listenPort int, proto string) (socket *net.UDPConn, err error) {
-	log.V(3).Infof("DHT: Listening for peers on IP: %s port: %d Protocol=%s\n", addr, listenPort, proto)
+func listen(addr string, listenPort int, proto string, log DebugLogger) (socket *net.UDPConn, err error) {
+	log.Debugf("DHT: Listening for peers on IP: %s port: %d Protocol=%s\n", addr, listenPort, proto)
 	listener, err := net.ListenPacket(proto, addr+":"+strconv.Itoa(listenPort))
 	if err != nil {
-		log.V(3).Infof("DHT: Listen failed:%s\n", err)
+		log.Debugf("DHT: Listen failed:%s\n", err)
 	}
 	if listener != nil {
 		socket = listener.(*net.UDPConn)
@@ -228,16 +229,16 @@ func listen(addr string, listenPort int, proto string) (socket *net.UDPConn, err
 }
 
 // Read from UDP socket, writes slice of byte into channel.
-func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena arena, stop chan bool) {
+func readFromSocket(socket *net.UDPConn, conChan chan packetType, bytesArena arena, stop chan bool, log DebugLogger) {
 	for {
 		b := bytesArena.Pop()
 		n, addr, err := socket.ReadFromUDP(b)
 		if err != nil {
-			log.V(3).Infof("DHT: readResponse error:%s\n", err)
+			log.Debugf("DHT: readResponse error:%s\n", err)
 		}
 		b = b[0:n]
 		if n == maxUDPPacketSize {
-			log.V(3).Infof("DHT: Warning. Received packet with len >= %d, some data may have been discarded.\n", maxUDPPacketSize)
+			log.Debugf("DHT: Warning. Received packet with len >= %d, some data may have been discarded.\n", maxUDPPacketSize)
 		}
 		totalReadBytes.Add(int64(n))
 		if n > 0 && err == nil {

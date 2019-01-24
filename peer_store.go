@@ -3,7 +3,6 @@ package dht
 import (
 	"container/ring"
 
-	log "github.com/golang/glog"
 	"github.com/golang/groupcache/lru"
 )
 
@@ -221,7 +220,6 @@ func (h *peerStore) addLocalDownload(ih InfoHash, port int) {
 }
 
 func (h *peerStore) hasLocalDownload(ih InfoHash) (port int) {
-	port, ok := h.localActiveDownloads[ih]
-	log.V(3).Infof("hasLocalDownload for %x: %v", ih, ok)
-	return port
+	port, _ = h.localActiveDownloads[ih]
+	return
 }
