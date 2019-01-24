@@ -1,9 +1,5 @@
 package dht
 
-import (
-	log "github.com/golang/glog"
-)
-
 // DHT routing using a binary tree and no buckets.
 //
 // Nodes have ids of 20-bytes. When looking up an infohash for itself or for a
@@ -213,19 +209,10 @@ func (n *nTree) isOK(ih InfoHash) bool {
 	r := n.value
 
 	if len(r.pendingQueries) > maxNodePendingQueries {
-		log.V(3).Infof("DHT: Skipping because there are too many queries pending for this dude.")
-		log.V(3).Infof("DHT: This shouldn't happen because we should have stopped trying already. Might be a BUG.")
 		return false
 	}
 
-	recent := r.wasContactedRecently(ih)
-	if log.V(4) {
-		log.Infof("wasContactedRecently for ih=%x in node %x@%v returned %v", ih, r.id, r.address, recent)
-	}
-	if recent {
-		return false
-	}
-	return true
+	return !r.wasContactedRecently(ih)
 }
 
 func commonBits(s1, s2 string) int {

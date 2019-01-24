@@ -39,7 +39,8 @@ func TestCommonBits(t *testing.T) {
 }
 
 func TestUpkeep(t *testing.T) {
-	r := newRoutingTable()
+	var log DebugLogger = &nullLogger{}
+	r := newRoutingTable(&log)
 	r.nodeId = id
 
 	// Current state: 0 neighbors.
