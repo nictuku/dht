@@ -21,10 +21,3 @@ http://godoc.org/github.com/nictuku/dht
 
 A full example is at:
 [find_infohash_and_wait](examples/find_infohash_and_wait/main.go)
-
-[![Build Status](https://drone.io/github.com/nictuku/dht/status.png)](https://drone.io/github.com/nictuku/dht/latest)
-
-Google+ Community
------------------
-
-We have a [Taipei-Torrent Google+ Community](https://plus.google.com/u/0/communities/100997865549971977580) for the parent project [Taipei Torrent](https://github.com/jackpal/Taipei-Torrent) and also this DHT library. 
