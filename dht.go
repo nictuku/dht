@@ -154,6 +154,7 @@ type DHT struct {
 	nodesRequest           chan ihReq
 	pingRequest            chan *remoteNode
 	portRequest            chan int
+	removeInfoHash         chan InfoHash
 	stop                   chan bool
 	wg                     sync.WaitGroup
 	clientThrottle         *nettools.ClientThrottle
@@ -185,6 +186,7 @@ func New(config *Config) (node *DHT, err error) {
 		nodesRequest:   make(chan ihReq, 100),
 		pingRequest:    make(chan *remoteNode),
 		portRequest:    make(chan int),
+		removeInfoHash: make(chan InfoHash),
 		clientThrottle: nettools.NewThrottler(cfg.ClientPerMinuteLimit, cfg.ThrottlerTrackedClients),
 	}
 	routingTable := newRoutingTable(&node.DebugLogger)
@@ -248,6 +250,7 @@ type announceOptions struct {
 // provided. announce should be true if the connected peer is actively
 // downloading this infohash, which is normally the case - unless this DHT node
 // is just a router that doesn't downloads torrents.
+// The infoHash added to the store can be deleted with RemoveInfoHash method.
 func (d *DHT) PeersRequest(ih string, announce bool) {
 	d.PeersRequestPort(ih, announce, d.config.Port)
 }
@@ -256,6 +259,13 @@ func (d *DHT) PeersRequest(ih string, announce bool) {
 func (d *DHT) PeersRequestPort(ih string, announce bool, port int) {
 	d.peersRequest <- ihReq{InfoHash(ih), announceOptions{announce, port}}
 	d.DebugLogger.Infof("DHT: torrent client asking more peers for %x.", ih)
+}
+
+// RemoveInfoHash removes infoHash from local store.
+// This method should be called when the peer is no longer downloading this infoHash.
+func (d *DHT) RemoveInfoHash(ih string) {
+	d.removeInfoHash <- InfoHash(ih)
+	d.DebugLogger.Infof("DHT: torrent client removes info hash %x.", ih)
 }
 
 // Stop the DHT node.
@@ -455,6 +465,8 @@ func (d *DHT) loop() {
 				d.getPeers(ih) // I might have enough peers in the peerstore, but no seeds
 			}
 
+		case ih := <-d.removeInfoHash:
+			d.peerStore.removeLocalDownload(ih)
 		case req := <-d.nodesRequest:
 			m := map[InfoHash]bool{req.ih: true}
 		L:
