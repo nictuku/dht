@@ -223,3 +223,7 @@ func (h *peerStore) hasLocalDownload(ih InfoHash) (port int) {
 	port, _ = h.localActiveDownloads[ih]
 	return
 }
+
+func (h *peerStore) removeLocalDownload(ih InfoHash) {
+	delete(h.localActiveDownloads, ih)
+}
