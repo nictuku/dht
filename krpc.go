@@ -34,10 +34,10 @@ type remoteNode struct {
 	lastResponseTime time.Time
 	lastSearchTime   time.Time
 	ActiveDownloads  []string // List of infohashes we know this peer is downloading.
-	log              *DebugLogger
+	log              DebugLogger
 }
 
-func newRemoteNode(addr net.UDPAddr, id string, log *DebugLogger) *remoteNode {
+func newRemoteNode(addr net.UDPAddr, id string, log DebugLogger) *remoteNode {
 	return &remoteNode{
 		address:             addr,
 		addressBinaryFormat: nettools.DottedPortToBinary(addr.String()),
@@ -101,10 +101,10 @@ func parseNodesString(nodes string, proto string, log DebugLogger) (parsed map[s
 // It does not set any extra information to the transaction information, so the
 // caller must take care of that.
 func (r *remoteNode) newQuery(transType string) (transId string) {
-	(*r.log).Debugf("newQuery for %x, lastID %v", r.id, r.lastQueryID)
+	r.log.Debugf("newQuery for %x, lastID %v", r.id, r.lastQueryID)
 	r.lastQueryID = (r.lastQueryID + 1) % 256
 	transId = strconv.Itoa(r.lastQueryID)
-	(*r.log).Debugf("... new id %v", r.lastQueryID)
+	r.log.Debugf("... new id %v", r.lastQueryID)
 	r.pendingQueries[transId] = &queryType{Type: transType}
 	return
 }
